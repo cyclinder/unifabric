@@ -14,16 +14,13 @@ datasource plugin queries that API. A Grafana panel plugin renders the graph.
 
 ## Applicability
 
-The table states the supported conclusion for each component and topology source.
-Analysis used Unifabric chart version `0.1.0` with `appVersion: 0.1.0`.
+The graph content depends on the topology discovery mode. The table states the
+conclusion for each mode. Analysis used Unifabric chart version `0.1.0`.
 
-| Component or source | Version range | Key setting and value | Supported | Source |
+| Topology source | Version range | Key setting and value | Supported | Source |
 | --- | --- | --- | --- | --- |
-| Grafana Operator with its CRDs | Analyzed with the operator CRDs required by chart 0.1.0 | installed in the cluster | ✅ Required | [Chart reference](https://github.com/unifabric-io/unifabric/blob/main/chart/README.md) |
-| Topology HTTP API | Unifabric 0.1.0 | `topologyAPI.enabled=true` | ✅ Required. The default is `false`, so the graph stays empty until you enable it. | [Visualization design](https://github.com/unifabric-io/unifabric/blob/main/docs/design/topology-visualization.md) |
 | Built-in LLDP discovery (SONiC RoCE) | Unifabric 0.1.0 | `topoDiscovery.scaleOut.mode=unifabric-roce` | ✅ Supported. Domain cards show real switch members. | [SONiC RoCE guide](./getting-started-sonic-roce.md) |
-| NVIDIA Topograph sources (Spectrum-X, InfiniBand) | Unifabric 0.1.0 | `topoDiscovery.<topology>.mode=nv-topograph` | ✅ Supported. Switch members are empty unless an administrator creates label-only `Switch` resources. | [Topology CRD design](https://github.com/unifabric-io/unifabric/blob/main/docs/design/topology-crd.md) |
-| Grafana instances without the Unifabric plugins | Any | no plugin installation | ❌ Not supported. The dashboard requires the Unifabric datasource and panel plugins. | [Visualization design](https://github.com/unifabric-io/unifabric/blob/main/docs/design/topology-visualization.md) |
+| NVIDIA Topograph sources (Spectrum-X, InfiniBand) | Unifabric 0.1.0 | `topoDiscovery.<topology>.mode=nv-topograph` | ✅ Supported. Switch members stay empty unless an administrator creates label-only `Switch` resources. | [Topology CRD design](https://github.com/unifabric-io/unifabric/blob/main/docs/design/topology-crd.md) |
 
 ## Prerequisites
 
