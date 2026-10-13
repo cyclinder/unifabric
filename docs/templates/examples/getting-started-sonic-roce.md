@@ -1,4 +1,4 @@
-# Getting Started: Deploy Unifabric on a General SONiC RoCE Fabric
+# Deploy Unifabric on a General SONiC RoCE Fabric
 
 ## Introduction and Deployment Goals
 
