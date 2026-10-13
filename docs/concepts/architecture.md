@@ -1,5 +1,7 @@
 # Unifabric Architecture
 
+中文版：[architecture.zh.md](./architecture.zh.md)
+
 ## Overview
 
 Unifabric is an RDMA network topology discovery and observability system for Kubernetes
@@ -22,7 +24,7 @@ It also does not manage switch configuration. It only observes the network.
 
 ## Overall Architecture
 
-![Unifabric architecture](../../images/architecture.png)
+![Unifabric architecture](../images/architecture.png)
 
 Unifabric runs on Kubernetes between the physical RDMA network and the scheduling and
 observability stack. It consists of three components.
@@ -67,9 +69,9 @@ domains, writes them as Node topology labels, and aggregates the labels into the
 
 1. Collect. On every node, the Agent scans the RDMA NICs and classifies each one as
    scale-out, scale-up, or storage. It reads the LLDP neighbor of each NIC and writes
-   the result to the `FabricNode` status. On fabrics with a Switch Agent, each switch reports its own
-   LLDP neighbor snapshot to the Controller, which stores it in the matching `Switch`
-   status.
+   the result to the `FabricNode` status. On fabrics with a Switch Agent, each switch
+   reports its own LLDP neighbor snapshot to the Controller, which stores it in the
+   matching `Switch` status.
 2. Compute. The Controller combines node-to-switch links from `FabricNode` LLDP with
    switch-to-switch links from `Switch` snapshots or administrator-declared neighbor
    annotations. It groups switches that share downstream Nodes into tiered performance

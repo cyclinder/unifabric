@@ -74,7 +74,7 @@ the contents of `~/.ssh/nvair.unifabric.io` and
 `~/.ssh/nvair.unifabric.io.pub` for the same NVIDIA Air account, so CI does not
 generate a different key during `nvair login`.
 
-For more details, please refer to the [quickstart](../../docs/quickstart.md).
+For more details, please refer to the [basic installation guide](../../docs/getting-started.md).
 
 ### Create Simulation and Supporting Services
 
