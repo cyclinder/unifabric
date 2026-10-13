@@ -48,3 +48,7 @@ getting-started(装起来)→ usage(逐个功能用好)→ reference(查字段)
 9. **不假设读者懂底层术语**:涉及底层机制的名词(如 ibv_post_send、GIN)
    要么不出现,要么一句话翻译成与结论的关系(如"= CPU 发起 = 支持")。
 10. **与结论无关的信息不写**:默认即可工作、无需用户干预的配置不要提,避免干扰。
+11. **英文行文遵循 simple-english(ASD-STE100)规范**:短句、主动语态、
+    情态动词只用 can/will/must(禁 should/may/might)、一词一义、
+    术语首次出现即定义、删除不承载事实的修饰词。
+    参见 [AminBlg/SimpleEnglish](https://github.com/AminBlg/SimpleEnglish)。
