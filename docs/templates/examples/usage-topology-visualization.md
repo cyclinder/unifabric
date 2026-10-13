@@ -12,15 +12,9 @@ show live traffic or link utilization. A cluster without at least one populated
 The feature has three parts. The Controller serves a Topology HTTP API. A Grafana
 datasource plugin queries that API. A Grafana panel plugin renders the graph.
 
-## Applicability
-
-The graph content depends on the topology discovery mode. The table states the
-conclusion for each mode. Analysis used Unifabric chart version `0.1.0`.
-
-| Topology source | Version range | Key setting and value | Supported | Source |
-| --- | --- | --- | --- | --- |
-| Built-in LLDP discovery (SONiC RoCE) | Unifabric 0.1.0 | `topoDiscovery.scaleOut.mode=unifabric-roce` | ✅ Supported. Domain cards show real switch members. | [SONiC RoCE guide](./getting-started-sonic-roce.md) |
-| NVIDIA Topograph sources (Spectrum-X, InfiniBand) | Unifabric 0.1.0 | `topoDiscovery.<topology>.mode=nv-topograph` | ✅ Supported. Switch members stay empty unless an administrator creates label-only `Switch` resources. | [Topology CRD design](https://github.com/unifabric-io/unifabric/blob/main/docs/design/topology-crd.md) |
+> **Note:** With NVIDIA Topograph sources (`nv-topograph` mode), switch member
+> cards stay empty unless an administrator creates label-only `Switch` resources.
+> See the [Topology CRD design](https://github.com/unifabric-io/unifabric/blob/main/docs/design/topology-crd.md).
 
 ## Prerequisites
 
