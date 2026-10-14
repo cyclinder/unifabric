@@ -5,46 +5,67 @@ English | [简体中文](./README-zh_cn.md)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](./LICENSE)
 [![Release](https://img.shields.io/github/v/release/unifabric-io/unifabric)](https://github.com/unifabric-io/unifabric/releases)
 
-> RDMA network topology discovery and observability for Kubernetes AI clusters.
+> Observability for the high-speed networks of cloud-native AI clusters.
 
 ## Introduction
 
-AI clusters move training data between GPUs over RDMA networks. RDMA (direct memory
-access between servers, without CPU copies) runs on RoCE or InfiniBand fabrics.
-Kubernetes has no view of this network. The scheduler cannot tell whether two nodes
-share a leaf switch. Operators cannot attribute RDMA traffic or errors to the
-workloads that cause them. The result is avoidable cross-spine traffic, lower GPU
-utilization, and slow network troubleshooting.
+A modern AI cluster depends on three high-speed networks: the scale-out network for
+GPU communication across nodes (RoCE or InfiniBand), the scale-up network for GPU
+interconnect inside a node (NVLink and similar), and the high-speed storage network.
+Training and inference performance depends on these networks. Congestion or
+degradation on one link can slow down a whole job, or interrupt a training run.
 
-Unifabric closes this gap. It discovers the RDMA network topology of the cluster
-automatically. It publishes the result as Kubernetes resources and as labels on each
-Node, which schedulers consume. It also exposes RDMA metrics attributed to Pods and
-workloads, with prebuilt Grafana dashboards.
+To the cloud-native stack, these networks are a black box. They are built from
+switches, routers, and NICs of many vendors. The observability tools of this
+hardware do not connect to each other, and do not connect to the Kubernetes resource
+model or its monitoring stack. Current cloud-native observability is built around
+TCP/IP and does not cover RDMA or NVLink. A network anomaly cannot be attributed to
+a Pod or a training job. This is the "last mile" problem of AI workload
+observability.
 
-Unifabric fits any Kubernetes cluster with an RDMA fabric. It supports general SONiC
-RoCE networks, NVIDIA Spectrum-X, and InfiniBand.
+Unifabric closes this gap in a cloud-native way. It discovers the topology of the
+three networks, observes RDMA and NVLink traffic and attributes it to workloads, and
+probes network health proactively. Whatever the hardware vendor is, Unifabric
+presents the result through one Kubernetes resource model: CRDs, Node labels, and
+metrics. The observation also feeds back into scheduling. Schedulers such as Kueue
+and Volcano consume the topology labels, which improves training and inference
+efficiency.
 
 ## Core Features
 
-- Automatic discovery of scale-out, scale-up, and storage network topologies
-- Support for general SONiC RoCE, NVIDIA Spectrum-X, and InfiniBand fabrics
-- Tiered Node labels that Kueue TAS, Volcano, and KAI Scheduler consume for topology-aware placement
-- RDMA throughput, congestion, and error metrics attributed to Pods, namespaces, and workloads
-- Optional eBPF RDMA flow attribution that maps RDMA send traffic to Pod-to-Pod flows
-- Interactive visualization of the discovered fabric in Grafana
-- Queryable network state through the `FabricNode`, `Switch`, `Topology`, and `RDMAEndpoint` resources
+### Topology discovery
+
+Unifabric discovers the topologies of the scale-out, scale-up, and storage networks.
+It publishes them as `Topology` resources and tiered Node labels, and renders them
+in Grafana. Schedulers such as Kueue TAS, Volcano, and KAI Scheduler consume the
+labels and place communication-heavy jobs inside one switch domain. Operators locate
+fault domains on the rendered topology. Unifabric supports general SONiC RoCE
+fabrics (LLDP-based discovery), NVIDIA Spectrum-X, and InfiniBand (imported from
+NVIDIA Topograph).
+
+### RDMA and NVLink traffic observability
+
+Unifabric observes RDMA traffic on the scale-out and storage networks, and NVLink
+traffic on the scale-up network. It collects data from host NICs, container NICs,
+switches, and eBPF flow attribution. Throughput, congestion, and error metrics are
+attributed to Pods, namespaces, and workloads, so the metrics answer whose traffic
+it is and which workload it affects. Prebuilt Grafana dashboards ship with the
+chart.
+
+### Active network health checks
+
+Unifabric probes the paths of the high-speed networks proactively, before a workload
+reports a problem. Link degradation and configuration faults surface before they
+affect training and inference jobs.
 
 ## Architecture
 
-![Unifabric architecture](./docs/images/architecture.png)
+![Unifabric product architecture](./docs/images/product-architecture.svg)
 
-Unifabric sits between the physical RDMA network and the scheduling and observability
-stack. An Agent runs on every node and collects RDMA NICs, LLDP neighbors, and RDMA
-Pod attribution into `FabricNode` resources. The Controller computes the topology from
-`FabricNode` and `Switch` data, or imports it from NVIDIA Topograph. It then writes
-Node topology labels and maintains the read-only `Topology` resource. An optional
-Switch Agent runs on SONiC switches and reports switch-side neighbors for
-switch-to-switch discovery. For details, see the
+Unifabric sits on top of the scale-out, scale-up, and storage networks. It discovers
+them directly, or imports topology from NVIDIA Topograph and NetQ. It presents the
+three core capabilities through one Kubernetes resource model. Schedulers, Grafana,
+and Prometheus consume the result. For the component architecture, see the
 [architecture overview](./docs/concepts/architecture.md).
 
 ## Quick Start
