@@ -2,19 +2,24 @@
 
 中文版：[README.zh.md](./README.zh.md)
 
-Unifabric turns RDMA network hierarchy, node proximity, and NIC state in Kubernetes AI clusters
-into data that Kubernetes can query and consume:
+Unifabric discovers the RDMA network topology of Kubernetes AI clusters and makes it
+observable. It writes topology labels to Nodes for schedulers, exposes the network
+state through the `FabricNode`, `Switch`, and `Topology` resources, and attributes
+RDMA metrics to Pods and workloads. For a full description of the components and data
+flows, see the [architecture overview](./concepts/architecture.md).
 
-- Agents collect node RDMA NICs, LLDP neighbors, and Pod network attribution.
-- The Controller or NVIDIA Topograph discovers topology and writes the result to Node labels.
-- `FabricNode`, `Switch`, and `Topology` CRs expose cluster-level network state.
-- Prometheus metrics and Grafana dashboards expose RDMA traffic, congestion, errors, and Pod
-  attribution.
+Recommended reading path: install with the getting started guides, use each feature
+with the usage guides, look up fields in the reference, and read the concepts and
+design documents to understand how the system works.
 
-Schedulers can use these results to place communication-intensive AI workloads on nearby Nodes,
-while operators can diagnose RDMA network and workload traffic problems.
+## Concepts
 
-## Quick Start
+- [Architecture overview](./concepts/architecture.md): components, core concepts,
+  data flows, and use cases.
+- [Topology discovery](./concepts/topology-discovery.md): logical topologies,
+  discovery modes, and discovery results.
+
+## Getting Started
 
 Follow [Deploy Unifabric](./getting-started.md) to install the Controller, the
 Agent, and the observability components. The default installation works on a
@@ -32,62 +37,37 @@ troubleshooting, see the [topology discovery guide](./usage/topology-discovery.m
 For other Chart parameters, see the defaults and descriptions in the
 [Helm values reference](../chart/README.md).
 
-## Core Features
+## Usage
 
-### Topology Discovery
+- [Topology visualization](./usage/topology-visualization.md): render the discovered
+  fabric in Grafana.
+- [RDMA metrics](./usage/rdma-metrics.md): RDMA traffic, congestion, and error
+  metrics with Pod and workload attribution.
+- [RDMA flow attribution](./usage/rdma-flow.md): attribute RDMA sends to Pod-to-Pod
+  flows with eBPF, publish `RDMAEndpoint`, and store per-send events.
+- [Workload TAS](./usage/workload-tas.md): topology-aware scheduling with Kueue TAS
+  and similar schedulers.
+- [Switch Agent deployment](./usage/switch-agent-deployment.md): deploy the Switch
+  Agent on SONiC switches.
 
-Topology discovery converts physical adjacency into hierarchical performance domains and writes
-them to Kubernetes Node labels. Unifabric models three logical topologies:
+## Reference
 
-- **Scale-out network:** Node-to-node communication through leaf, spine, and core tiers. See the
-  [topology discovery guide](./usage/topology-discovery.md) for configuration and label semantics.
-- **Scale-up network:** High-bandwidth GPU interconnect domains such as NVLink and NVSwitch.
-  Currently, only the InfiniBand scenario writes scale-up labels. See the
-  [topology discovery guide](./usage/topology-discovery.md) for configuration.
-- **Storage network:** A dedicated RDMA network between compute Nodes and storage services.
-  Currently, only the SONiC RoCE discovery method supports it. See the
-  [topology discovery guide](./usage/topology-discovery.md) for configuration.
-
-Discovery results are exposed to schedulers as Node labels and aggregated into read-only
-`Topology` CRs. Use the
-[FabricNode, Switch, and Topology API reference](./reference/README.md) to query the results.
-
-### Topology-Aware Scheduling
-
-Kueue, Volcano, KAI Scheduler, and similar systems can consume the discovered Node labels and place
-Pods from one workload in the same or nearby performance domains, reducing traffic across switch
-tiers.
-
-- [Topology-aware scheduling and Kueue TAS example](./usage/workload-tas.md)
-- [Topology API reference](./reference/topology.md)
-
-### RDMA Traffic and Health Observability
-
-Unifabric Agents collect RDMA device, port, priority, throughput, congestion, and error metrics and
-attribute traffic to Pods, namespaces, and top-level workloads. Grafana dashboards help operators
-diagnose RDMA traffic and health by cluster, Node, and workload.
-
-- [RDMA observability usage guide](./usage/rdma-metrics.md)
-- [eBPF RDMA flow attribution usage guide](./usage/rdma-flow.md): attribute RDMA sends to
-  Pod-to-Pod flows, publish `RDMAEndpoint`, and store per-send events.
-- [Topology visualization usage guide](./usage/topology-visualization.md)
-
-## Development
-
-- [NVAIR development guide](./development/dev-with-nvair.md): Build a local topology and end-to-end
-  development environment.
+- [API reference index](./reference/README.md)
+- [FabricNode](./reference/fabricnode.md)
+- [Switch](./reference/switch.md)
+- [Topology](./reference/topology.md)
+- [RDMAEndpoint](./reference/rdmaendpoint.md)
 
 ## Design
 
-- [Unifabric API reference](./reference/README.md): Query `FabricNode`, `Switch`, `Topology`, and
-  `RDMAEndpoint`.
-- [Topology CRD design](./design/topology-crd.md): Understand performance domains, Node paths, and
-  the topology data model.
-- [Scale-out topology discovery design](./design/scaleout-topology.md): Understand how Scale-out
-  topologies are discovered and constructed.
-- [RDMA metric model and Pod attribution design](./design/rdma-metrics.md): Understand metric
-  definitions and workload attribution.
-- [eBPF RDMA flow attribution design](./design/rdma-flow.md): Understand how `libibverbs`
-  uprobes, `RDMAEndpoint` and the send event pipeline attribute traffic between Pods.
-- [Topology visualization design](./design/topology-visualization.md): Understand the Topology
-  HTTP API and the Grafana datasource/panel plugins that render it.
+- [FabricNode design](./design/fabricnode.md)
+- [RDMA metric model and Pod attribution design](./design/rdma-metrics.md)
+- [eBPF RDMA flow attribution design](./design/rdma-flow.md)
+- [Scale-out topology discovery design](./design/scaleout-topology.md)
+- [Topology CRD design](./design/topology-crd.md)
+- [Topology visualization design](./design/topology-visualization.md)
+
+## Development
+
+- [NVAIR development guide](./development/dev-with-nvair.md): build a local topology
+  and end-to-end development environment.
