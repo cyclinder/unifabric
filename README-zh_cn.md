@@ -5,41 +5,52 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](./LICENSE)
 [![Release](https://img.shields.io/github/v/release/unifabric-io/unifabric)](https://github.com/unifabric-io/unifabric/releases)
 
-> 面向 Kubernetes AI 集群的 RDMA 网络拓扑发现与可观测系统。
+> 面向云原生 AI 集群高速网络的可观测系统
 
 ## 简介
 
-AI 集群通过 RDMA 网络在 GPU 之间传输训练数据。RDMA（服务器之间绕过 CPU 拷贝的直接
-内存访问）运行在 RoCE 或 InfiniBand 网络上。Kubernetes 看不见这张网络：调度器无法
-判断两个节点是否连在同一台 leaf 交换机，运维人员也无法把 RDMA 流量和错误归因到产生
-它们的工作负载。结果是本可避免的跨 spine 流量、更低的 GPU 利用率，以及缓慢的网络排障。
+现代 AI 集群依赖三张高速网络——GPU 跨节点通信的 Scale-out 网络（RoCE / InfiniBand）、
+节点内 GPU 互联的 Scale-up 网络（NVLink 等），以及高速存储网络。训练与推理的性能
+高度依赖这三张网络：一条链路的拥塞或劣化，足以拖慢整个任务，甚至中断训练。
 
-Unifabric 填补了这个空白。它自动发现集群的 RDMA 网络拓扑，以 Kubernetes 资源和
-Node label 的形式发布结果，供调度器消费。它还暴露归因到 Pod 和 workload 的 RDMA
-指标，并提供预置的 Grafana dashboard。
+但这三张网络对云原生体系几乎是黑盒。它们由多家厂商的交换机、路由器和网卡组成，
+硬件各自的观测工具互不相通，也不与 Kubernetes 的资源模型和监控体系对接；而社区
+现有的云原生可观测方案围绕 TCP/IP 构建，不覆盖 RDMA 与 NVLink。网络异常无法归因
+到具体的 Pod 和训练任务——这是 AI workload 可观测的"最后一公里"问题。
 
-Unifabric 适用于任何具备 RDMA 网络的 Kubernetes 集群，支持通用 SONiC RoCE 网络、
-NVIDIA Spectrum-X 和 InfiniBand。
+Unifabric 用云原生的方式补上这块空白：自动识别三张网络的拓扑，观测 RDMA 和 NVLink
+流量并归因到 workload，主动探测网络健康。无论底层是哪家厂商的设备，都以统一的
+Kubernetes 资源模型（CRD、Node label、metrics）呈现，并且观测不止于看板——拓扑
+label 直接被 Kueue、Volcano 等调度器消费，提升 AI 集群的训练与推理效率。
 
 ## 核心特性
 
-- 自动发现 scale-out、scale-up 和 storage 网络拓扑
-- 支持通用 SONiC RoCE、NVIDIA Spectrum-X 和 InfiniBand 网络
-- 生成分层 Node label，供 Kueue TAS、Volcano、KAI Scheduler 做拓扑感知调度
-- RDMA 吞吐、拥塞和错误指标，归因到 Pod、namespace 和 workload
-- 可选的 eBPF RDMA 流归因，把 RDMA 发送流量映射为 Pod 间流
-- 在 Grafana 中交互式可视化已发现的网络拓扑
-- 通过 `FabricNode`、`Switch`、`Topology` 和 `RDMAEndpoint` 资源查询网络状态
+### 拓扑识别
+
+自动发现 scale-out、scale-up 和存储三张网络的拓扑，发布为 `Topology` 资源和分层
+Node label，并在 Grafana 中交互式可视化。Kueue TAS、Volcano、KAI Scheduler 等
+调度器消费这些 label，把通信密集的任务收敛在同一交换机域内；运维在拓扑图上快速
+圈定故障域。支持通用 SONiC RoCE（LLDP 自主发现）、NVIDIA Spectrum-X 和
+InfiniBand（从 NVIDIA Topograph 导入）。
+
+### RDMA 与 NVLink 流量观测
+
+观测 scale-out 和存储网络的 RDMA 流量，以及 scale-up 网络的 NVLink 流量，采集面
+横跨主机网卡、容器网卡、交换机和 eBPF 流归因。吞吐、拥塞、错误指标归因到 Pod、
+namespace 和 workload，回答"是谁的流量、影响了谁"，并提供预置 Grafana 仪表盘。
+
+### 网络主动健康检查
+
+不等业务报障，主动对高速网络路径做探测巡检，让链路劣化和配置故障在影响训练与推理任务之前暴露出来。
 
 ## 架构
 
-![Unifabric 架构图](./docs/images/architecture.png)
+![Unifabric 产品架构图](./docs/images/product-architecture.svg)
 
-Unifabric 位于物理 RDMA 网络与调度、观测体系之间。Agent 运行在每个节点上，把 RDMA
-网卡、LLDP 邻居和 RDMA Pod 归属采集到 `FabricNode` 资源。Controller 基于
-`FabricNode` 和 `Switch` 数据计算拓扑，或从 NVIDIA Topograph 导入，然后写入 Node
-拓扑 label 并维护只读的 `Topology` 资源。可选的 Switch Agent 运行在 SONiC 交换机上，
-上报交换机侧邻居，支撑交换机间发现。详见[架构总览](./docs/concepts/architecture.zh.md)。
+Unifabric 构建在 scale-out、scale-up 和存储三张网络之上：直接发现这些网络，或从
+NVIDIA Topograph、NetQ 导入拓扑，以统一的 Kubernetes 资源模型对外提供三大核心能力，
+由调度器、Grafana 和 Prometheus 消费。组件级架构详见
+[架构总览](./docs/concepts/architecture.zh.md)。
 
 ## 快速开始
 

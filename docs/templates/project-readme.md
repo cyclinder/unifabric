@@ -16,7 +16,10 @@ documentation itself.
 > One-line positioning              <!-- what it is + what problem it solves, 30 words at most -->
 
 ## Introduction                     <!-- 2-3 paragraphs: pain point, how it solves it, where it fits -->
-## Core Features                    <!-- bullets, one line each, 5-8 items -->
+## Core Features             <!-- one subsection per major capability, 2-4 subsections;
+                                  each is 1-3 sentences that cover what it does, the
+                                  problem it solves, and the supported environments
+                                  when it is environment-specific -->
 ## Architecture                     <!-- one overall diagram + 3-5 sentences, details link to concepts -->
 ## Quick Start                      <!-- only links to the getting started guides, no commands -->
 ## Documentation                    <!-- a table of links to each docs/ category -->
@@ -33,10 +36,12 @@ documentation itself.
 3. Write each feature as what the user gets, not as an implementation term.
    Correct: "Automatic discovery of the RoCE network topology."
    Wrong: "CRD reporting based on an LLDP agent."
-4. **List first-level features only** (topology discovery, topology visualization,
-   RDMA observability, topology-aware scheduling, and similar). Do not expand
-   second-level or third-level capabilities, such as supported switch models or
-   individual metrics. Leave them to the usage and reference documents.
+4. **Group the features by major capability.** Give each capability one subsection
+   whose prose covers what it does, the problem it solves, and its supported
+   environments. Do not write these dimensions as literal labels, and do not mix
+   capabilities in one flat list. Do not expand second-level details, such as
+   supported switch models or individual metrics. Leave them to the usage and
+   reference documents.
 5. The architecture diagram is the same image as in the concepts documents. Keep one
    source for it.
 6. The English and Chinese versions (README.md and README-zh_cn.md) must align
