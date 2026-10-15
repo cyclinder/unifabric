@@ -68,7 +68,7 @@ status:
       status: "True"
       reason: LLDPNeighborsReady
       message: All selected RDMA interfaces have LLDP neighbors
-  totalNics: 3
+  totalNics: 4
   nodeRole: GPU
   nodeIP: 192.168.200.6
   scaleOutNics:
@@ -107,6 +107,18 @@ status:
         hostname: storage-leaf-1
         mgmtIP: 10.10.20.1
         mac: 00:11:22:33:55:55
+        port: Ethernet9/1
+        description: Storage leaf switch
+    - name: eth10
+      rdma: true
+      rdmaDeviceName: mlx5_9
+      state: up
+      ipv4: 172.18.10.11/24
+      ipv6: ""
+      lldpNeighbor:
+        hostname: storage-leaf-2
+        mgmtIP: 10.10.20.2
+        mac: 00:11:22:33:55:66
         port: Ethernet9/1
         description: Storage leaf switch
   rdmaPods:
