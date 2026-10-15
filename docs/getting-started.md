@@ -50,16 +50,17 @@ By default, Unifabric classifies all RDMA NICs on a node as scale-out. If a node
 has RDMA NICs for different purposes, add the matching selector to the
 installation command with `--set`.
 
-For example, a node has five RDMA NICs named `eth1` through `eth5`. The NICs
-`eth1` through `eth4` carry scale-out traffic, and `eth5` carries storage
-traffic. Add this option to the installation command:
+For example, a node has six RDMA NICs named `eth1` through `eth6`. The NICs
+`eth1` through `eth4` carry scale-out traffic, and `eth5` and `eth6` carry
+storage traffic. Add this option to the installation command:
 
 ```bash
---set fabricNode.storageInterfaceSelector="interface=eth5"
+--set fabricNode.storageInterfaceSelector="interface=eth5\,eth6"
 ```
 
-Unifabric then classifies `eth5` as storage. The other four RDMA NICs remain
-scale-out by the default rule. The
+Unifabric then classifies `eth5` and `eth6` as storage. The other four RDMA
+NICs remain scale-out by the default rule. The selector also supports wildcards
+and CIDRs, for example `interface=eth*,!eth9` or `cidr=172.17.0.0/16`. The
 [Helm values reference](../chart/README.md) describes the complete selector
 syntax.
 
@@ -99,7 +100,7 @@ kubectl get fabricnode <node-name> -o yaml
 
 Make sure that `status.totalNics`, `status.scaleOutNics`, and
 `status.storageNics` match the real NIC configuration of the node. For the
-five-NIC example above, the result looks like this:
+six-NIC example above, the result looks like this:
 
 ```yaml
 apiVersion: unifabric.io/v1beta1
@@ -107,7 +108,7 @@ kind: FabricNode
 metadata:
   name: node1
 status:
-  totalNics: 5
+  totalNics: 6
   scaleOutNics:
     - name: eth1
       rdmaDeviceName: mlx5_0
@@ -128,6 +129,10 @@ status:
   storageNics:
     - name: eth5
       rdmaDeviceName: mlx5_4
+      rdma: true
+      state: up
+    - name: eth6
+      rdmaDeviceName: mlx5_5
       rdma: true
       state: up
 ```

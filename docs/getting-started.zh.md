@@ -47,15 +47,16 @@ helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
 默认情况下,Unifabric 把节点上的所有 RDMA 网卡归类为 scale-out。如果节点上存在
 不同用途的 RDMA 网卡,在安装命令中用 `--set` 追加对应的 selector。
 
-例如,一个节点有 `eth1` 到 `eth5` 五张 RDMA 网卡,其中 `eth1` 到 `eth4` 承载
-scale-out 流量,`eth5` 承载 storage 流量。在安装命令中追加:
+例如,一个节点有 `eth1` 到 `eth6` 六张 RDMA 网卡,其中 `eth1` 到 `eth4` 承载
+scale-out 流量,`eth5` 和 `eth6` 承载 storage 流量。在安装命令中追加:
 
 ```bash
---set fabricNode.storageInterfaceSelector="interface=eth5"
+--set fabricNode.storageInterfaceSelector="interface=eth5\,eth6"
 ```
 
-Unifabric 会把 `eth5` 归类为 storage,其余四张 RDMA 网卡仍按默认规则归类为
-scale-out。选择器的完整语法参见 [Helm values 参考](../chart/README.md)。
+Unifabric 会把 `eth5` 和 `eth6` 归类为 storage,其余四张 RDMA 网卡仍按默认规则
+归类为 scale-out。选择器还支持通配符和 CIDR,例如 `interface=eth*,!eth9` 或
+`cidr=172.17.0.0/16`。完整语法参见 [Helm values 参考](../chart/README.md)。
 
 如果集群没有 Prometheus Operator 或 Grafana Operator,在安装命令中追加:
 
@@ -90,7 +91,7 @@ kubectl get fabricnode <node-name> -o yaml
 ```
 
 确认 `status.totalNics`、`status.scaleOutNics` 和 `status.storageNics` 符合
-节点的真实网卡配置。以前面的五张 RDMA 网卡为例,结果形如:
+节点的真实网卡配置。以前面的六张 RDMA 网卡为例,结果形如:
 
 ```yaml
 apiVersion: unifabric.io/v1beta1
@@ -98,7 +99,7 @@ kind: FabricNode
 metadata:
   name: node1
 status:
-  totalNics: 5
+  totalNics: 6
   scaleOutNics:
     - name: eth1
       rdmaDeviceName: mlx5_0
@@ -119,6 +120,10 @@ status:
   storageNics:
     - name: eth5
       rdmaDeviceName: mlx5_4
+      rdma: true
+      state: up
+    - name: eth6
+      rdmaDeviceName: mlx5_5
       rdma: true
       state: up
 ```
