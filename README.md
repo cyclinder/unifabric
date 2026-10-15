@@ -91,6 +91,10 @@ To understand which discovery mode each network uses, see the
 | Helm values | [Chart reference](./chart/README.md) |
 | Design documents | [docs/design/](./docs/design/) |
 
+## Roadmap
+
+See the [roadmap](./docs/roadmap.md) for planned features and future direction.
+
 ## Community and Contributing
 
 Contributions are welcome:

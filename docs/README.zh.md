@@ -60,3 +60,7 @@ SONiC 交换机接入方式、label 语义和发现链路排查，参见
 ## 开发
 
 - [NVAIR 开发环境指南](./development/dev-with-nvair.md)：搭建本地拓扑与端到端开发环境。
+
+## 路线图
+
+- [路线图](./roadmap.zh.md)：规划中的功能与未来方向。

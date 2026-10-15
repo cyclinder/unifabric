@@ -74,6 +74,10 @@ NVIDIA Topograph、NetQ 导入拓扑，以统一的 Kubernetes 资源模型对�
 | Helm values | [Chart 参考](./chart/README.md) |
 | 设计文档 | [docs/design/](./docs/design/) |
 
+## 路线图
+
+规划中的功能与未来方向见[路线图](./docs/roadmap.zh.md)。
+
 ## 社区与贡献
 
 欢迎参与贡献：

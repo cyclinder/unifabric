@@ -71,3 +71,7 @@ For other Chart parameters, see the defaults and descriptions in the
 
 - [NVAIR development guide](./development/dev-with-nvair.md): build a local topology
   and end-to-end development environment.
+
+## Roadmap
+
+- [Roadmap](./roadmap.md): planned features and future direction.
