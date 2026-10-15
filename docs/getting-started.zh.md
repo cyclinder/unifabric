@@ -48,7 +48,9 @@ helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
 不同用途的 RDMA 网卡,在安装命令中用 `--set` 追加对应的 selector。
 
 例如,一个节点有 `eth1` 到 `eth6` 六张 RDMA 网卡,其中 `eth1` 到 `eth4` 承载
-scale-out 流量,`eth5` 和 `eth6` 承载 storage 流量。在安装命令中追加:
+scale-out 流量,`eth5` 和 `eth6` 承载 storage 流量。标准 GPU 服务器
+(如 DGX H100/B200、GB200/GB300 NVL72)的参考架构通常配备 2 张专用存储网卡。
+在安装命令中追加:
 
 ```bash
 --set fabricNode.storageInterfaceSelector="interface=eth5\,eth6"

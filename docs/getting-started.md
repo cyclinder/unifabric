@@ -52,7 +52,9 @@ installation command with `--set`.
 
 For example, a node has six RDMA NICs named `eth1` through `eth6`. The NICs
 `eth1` through `eth4` carry scale-out traffic, and `eth5` and `eth6` carry
-storage traffic. Add this option to the installation command:
+storage traffic. Reference architectures of standard GPU servers, such as
+DGX H100/B200 and GB200/GB300 NVL72, commonly provide two dedicated storage
+NICs. Add this option to the installation command:
 
 ```bash
 --set fabricNode.storageInterfaceSelector="interface=eth5\,eth6"
