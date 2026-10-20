@@ -30,6 +30,5 @@ English version: [roadmap.md](./roadmap.md)
 | | GPU-initiated RDMA（GDAKI / IBGDA）观测 | Planned | Backlog |
 | RDMA 网络健康检查 | 被动健康状态（LLDP 就绪、交换机连接、探针） | Completed | v0.1.0 |
 | | 主动网络路径探测与链路退化检测 | Planned | v0.4 |
-| | 故障自动修复 | Planned | Backlog |
 
 状态取值：`Planned`（规划中）、`In progress`（进行中）、`Completed`（已完成）、`Deferred`（暂缓）。

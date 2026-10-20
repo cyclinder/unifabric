@@ -31,6 +31,5 @@ feedback. Discuss or propose roadmap items through
 | | GPU-initiated RDMA (GDAKI / IBGDA) observability | Planned | Backlog |
 | RDMA network health checks | Passive health status (LLDP readiness, switch connectivity, probes) | Completed | v0.1.0 |
 | | Active network path probing and link degradation detection | Planned | v0.4 |
-| | Automatic fault remediation | Planned | Backlog |
 
 Status values: `Planned`, `In progress`, `Completed`, `Deferred`.

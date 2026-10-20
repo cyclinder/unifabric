@@ -35,28 +35,92 @@ efficiency.
 
 ### Topology discovery
 
-Unifabric discovers the topologies of the scale-out, scale-up, and storage networks.
-It publishes them as `Topology` resources and tiered Node labels, and renders them
-in Grafana. Schedulers such as Kueue TAS, Volcano, and KAI Scheduler consume the
-labels and place communication-heavy jobs inside one switch domain. Operators locate
-fault domains on the rendered topology. Unifabric supports general SONiC RoCE
-fabrics (LLDP-based discovery), NVIDIA Spectrum-X, and InfiniBand (imported from
-NVIDIA Topograph).
+Topology discovery probes and identifies, in real time, the connections between
+hosts, switches, and other devices across the scale-out, scale-up, and storage
+networks. It turns the physical topology, which is scattered across vendor
+devices, into standard Kubernetes resources that other systems consume directly.
 
-### RDMA and NVLink traffic observability
+Capabilities:
 
-Unifabric observes RDMA traffic on the scale-out and storage networks, and NVLink
-traffic on the scale-up network. It collects data from host NICs, container NICs,
-switches, and eBPF flow attribution. Throughput, congestion, and error metrics are
-attributed to Pods, namespaces, and workloads, so the metrics answer whose traffic
-it is and which workload it affects. Prebuilt Grafana dashboards ship with the
-chart.
+- **Tiered Node labels**: writes each node's position in the network (leaf, spine,
+  and other tiers) into Node labels. Schedulers such as Kueue TAS, Volcano, and
+  KAI Scheduler consume the labels directly and place communication-heavy jobs
+  inside one switch domain, which shortens communication paths and improves
+  training and inference efficiency.
+- **Topology visualization**: publishes `Topology` resources and renders the whole
+  fabric interactively in Grafana. Operators see the global connection state
+  without logging into switches and quickly confirm which nodes and links are in
+  the affected scope during troubleshooting.
+
+Applicability:
+
+- Supports general SONiC RoCE switches (LLDP-based discovery), NVIDIA Spectrum-X,
+  and InfiniBand (imported from NVIDIA Topograph)
+- Supports bare-metal and cloud environments
+
+### AI network traffic observability
+
+AI network traffic observability collects traffic data for the three high-speed
+networks by reading NIC counters, collecting switch metrics, and attaching eBPF
+probes, and attributes it to
+Pods, namespaces, workloads, and hosts, turning device-level traffic into
+business-level observability. The goal is to answer network questions in
+workload terms—whether a slow job is caused by the network, and whose traffic
+affects whom—and to provide the evidence for performance analysis and
+troubleshooting of AI training and inference.
+
+Capabilities:
+
+- **RDMA metrics on host and Pod NICs**: covers throughput, congestion, and error
+  metrics, and provides endpoint-side data for performance analysis and
+  troubleshooting
+- **Pod identity association for switch traffic**: associates RDMA traffic on
+  switches in the scale-out and storage networks with specific Pods, which closes
+  the gap between device traffic and workload identity
+- **eBPF-based RDMA flow observability**: RDMA communication bypasses the kernel
+  stack, so packet capture and connection tracking are useless and the NIC
+  exposes only aggregate counters—the communication relations are a black box.
+  For CPU-initiated RDMA communication, this feature attaches eBPF probes to the
+  submit path of the verbs library and reconstructs Pod-level RDMA flows without
+  any application change: who talks to whom, when, and how much per send, making
+  RDMA communication as observable as TCP connections.
+- **NVLink traffic metrics (planned)**: collects GPU-to-GPU NVLink communication metrics on the
+  scale-up network, which makes intra-node GPU interconnect—a traditional
+  monitoring blind spot—observable
+
+Use cases:
+
+- **When a training or inference job slows down**: locate communication hot
+  spots—correlate RDMA metrics along the path (switches, Pod NICs, and more) at
+  the AI workload level and find the applications that consume the bandwidth
+- **During performance analysis and tuning**: analyze the timing, peers, and
+  message sizes of Pod RDMA communication and confirm the communication pattern
+  is as expected
+- **When troubleshooting network congestion or anomalies**: answer whose traffic
+  it is and which workload it affects quickly with prebuilt Grafana dashboards
+  and determine the affected scope
 
 ### Active network health checks
 
-Unifabric probes the paths of the high-speed networks proactively, before a workload
-reports a problem. Link degradation and configuration faults surface before they
-affect training and inference jobs.
+Active network health checks continuously probe the links and configuration of
+the three high-speed networks and surface problems proactively, instead of
+troubleshooting after a workload reports a failure.
+
+Capabilities:
+
+- **Passive health status collection**: continuously collects LLDP readiness, switch
+  connectivity, and probe results, which reflects the health of the network
+  infrastructure in real time
+- **Active network path probing and link degradation detection (planned)**: probes
+  network paths actively and finds link degradation before it triggers alerts
+
+Use cases:
+
+- **During routine inspection of large clusters**: keep track of link and switch
+  health continuously without checking devices one by one
+- **Before launching a training job**: verify the health of the network paths in
+  advance, so long-running training jobs are not interrupted or slowed down by
+  link degradation or configuration faults
 
 ## Architecture
 
@@ -71,23 +135,16 @@ and Prometheus consume the result. For the component architecture, see the
 ## Quick Start
 
 Follow the [deployment guide](./docs/getting-started.md) to install Unifabric. It
-covers the default SONiC RoCE path and the InfiniBand and NVIDIA Spectrum-X
-environments.
+covers the default SONiC RoCE network and also supports the InfiniBand and
+NVIDIA Spectrum-X environments.
 
-To understand which discovery mode each network uses, see the
-[topology discovery concept](./docs/concepts/topology-discovery.md).
+After installation, refer to the following guides for each feature:
 
-## Documentation
-
-| Category | Link |
-| --- | --- |
-| Documentation index | [docs/README.md](./docs/README.md) |
-| Architecture and concepts | [Architecture overview](./docs/concepts/architecture.md), [Topology discovery](./docs/concepts/topology-discovery.md) |
-| Getting started | [Deploy Unifabric](./docs/getting-started.md) |
-| Feature usage | [Topology visualization](./docs/usage/topology-visualization.md), [RDMA metrics](./docs/usage/rdma-metrics.md), [RDMA flow attribution](./docs/usage/rdma-flow.md), [Workload TAS](./docs/usage/workload-tas.md), [Switch Agent deployment](./docs/usage/switch-agent-deployment.md) |
-| API reference | [FabricNode, Switch, Topology, and RDMAEndpoint](./docs/reference/README.md) |
-| Helm values | [Chart reference](./chart/README.md) |
-| Design documents | [docs/design/](./docs/design/) |
+- Topology discovery and visualization: [topology visualization](./docs/usage/topology-visualization.md)
+- Topology-aware scheduling: [Kueue / Volcano / KAI scheduling integration](./docs/usage/workload-tas.md)
+- RDMA metrics observability: [RDMA metrics](./docs/usage/rdma-metrics.md)
+- RDMA flow attribution: [RDMA flow attribution](./docs/usage/rdma-flow.md)
+- Switch traffic observability: [Switch Agent deployment](./docs/usage/switch-agent-deployment.md)
 
 ## Roadmap
 

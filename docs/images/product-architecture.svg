@@ -37,7 +37,7 @@
   <text x="235" y="504" text-anchor="middle" font-size="11" fill="#4338CA">Topology CR · Node labels</text>
 
   <rect x="333" y="386" width="166" height="176" rx="10" fill="#EEF2FF" stroke="#C7D2FE" stroke-width="1.5"/>
-  <text x="416" y="446" text-anchor="middle" font-size="14.5" font-weight="bold" fill="#312E81">RDMA &amp; NVLink</text>
+  <text x="416" y="446" text-anchor="middle" font-size="14.5" font-weight="bold" fill="#312E81">AI Network</text>
   <text x="416" y="466" text-anchor="middle" font-size="14.5" font-weight="bold" fill="#312E81">Traffic</text>
   <text x="416" y="486" text-anchor="middle" font-size="14.5" font-weight="bold" fill="#312E81">Observability</text>
   <text x="416" y="514" text-anchor="middle" font-size="11" fill="#4338CA">Pod / workload attribution</text>

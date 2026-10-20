@@ -27,21 +27,72 @@ label 直接被 Kueue、Volcano 等调度器消费，提升 AI 集群的训练�
 
 ### 拓扑识别
 
-自动发现 scale-out、scale-up 和存储三张网络的拓扑，发布为 `Topology` 资源和分层
-Node label，并在 Grafana 中交互式可视化。Kueue TAS、Volcano、KAI Scheduler 等
-调度器消费这些 label，把通信密集的任务收敛在同一交换机域内；运维在拓扑图上快速
-圈定故障域。支持通用 SONiC RoCE（LLDP 自主发现）、NVIDIA Spectrum-X 和
-InfiniBand（从 NVIDIA Topograph 导入）。
+拓扑识别功能实时探测并识别 scale-out、scale-up 和存储三张网络中主机、交换机等
+设备之间的连接关系，把原本散落在各家网络设备里的物理拓扑，变成 Kubernetes 中
+可直接消费的标准资源。
 
-### RDMA 与 NVLink 流量观测
+具备如下功能：
 
-观测 scale-out 和存储网络的 RDMA 流量，以及 scale-up 网络的 NVLink 流量，采集面
-横跨主机网卡、容器网卡、交换机和 eBPF 流归因。吞吐、拥塞、错误指标归因到 Pod、
-namespace 和 workload，回答"是谁的流量、影响了谁"，并提供预置 Grafana 仪表盘。
+- **分层 Node label 发布**：自动把节点在网络中的位置（leaf、spine 等层级）写入
+  Node label，供 Kueue TAS、Volcano、KAI Scheduler 等调度器直接消费，把通信
+  密集的任务收敛在同一交换机域内，缩短通信路径，提升训练与推理效率
+- **拓扑可视化**：发布 `Topology` 资源并在 Grafana 中交互式呈现全网拓扑，
+  让运维无需登录交换机即可掌握全局连接状态，排障时可快速确认受影响的节点与链路范围
+
+功能适用：
+
+- 支持通用 SONiC RoCE 交换机（LLDP 自主发现）、NVIDIA Spectrum-X 和
+  InfiniBand（从 NVIDIA Topograph 导入）
+- 支持裸金属与云化环境
+
+### AI 网络流量观测
+
+AI 网络流量观测功能通过读取网卡计数器、采集交换机指标、挂载 eBPF 探针等方式，
+采集三张高速网络的流量数据，并统一归因到 Pod、namespace、workload 和主机，把设备视角的流量变成
+业务视角的可观测指标。观测的目的，是让网络问题可以用业务语言回答——任务变慢是否
+由网络引起、是谁的流量影响了谁——为 AI 训练与推理的性能分析和故障定位提供依据。
+
+具备如下功能：
+
+- **主机与 Pod 网卡的 RDMA 指标统计**：覆盖吞吐、拥塞与错误指标，
+  为性能分析和故障定位提供端侧数据
+- **交换机流量的 Pod 身份关联**：把 scale-out 与存储网络中交换机上的 RDMA 流量
+  关联到具体 Pod，打通"设备流量"与"业务身份"之间的断层
+- **基于 eBPF 的 RDMA 流观测**：RDMA 通信绕过内核协议栈，
+  抓包和连接跟踪等常规手段全部失效，网卡上只剩总量计数，通信关系完全是黑盒。
+  针对 CPU 发起的 RDMA 通信，该功能在 verbs 库的提交路径上挂载 eBPF 探针，
+  无需修改应用即可还原出 Pod 级的 RDMA 流：谁在和谁通信、何时通信、每次发送多大，
+  让 RDMA 通信像 TCP 连接一样可观测
+- **NVLink 流量指标（规划中）**：采集 scale-up 网络中 GPU 间 NVLink 通信指标，
+  让节点内 GPU 互联这一传统监控盲区变得可观测
+
+应用场景：
+
+- **训练/推理任务变慢时**：定位通信热点——在 AI workload 级别关联交换机、
+  Pod 网卡等路径上的 RDMA 指标，找出占用带宽的热点应用
+- **性能分析与调优时**：分析 Pod RDMA 通信的时序、peer 与报文大小，
+  确认通信模式是否符合预期
+- **网络拥塞或异常排障时**：通过预置 Grafana 仪表盘快速回答"是谁的流量、
+  影响了谁"，确定影响范围
 
 ### 网络主动健康检查
 
-不等业务报障，主动对高速网络路径做探测巡检，让链路劣化和配置故障在影响训练与推理任务之前暴露出来。
+网络主动健康检查功能持续对三张高速网络的链路和配置做探测巡检，主动发现问题，
+而不是等业务报障后再排查。
+
+具备如下功能：
+
+- **被动健康状态采集**：持续收集 LLDP 就绪、交换机连接状态与探针结果，
+  实时反映网络基础设施的健康水位
+- **主动网络路径探测与链路退化检测（规划中）**：主动打流探测网络路径，
+  发现尚未触发告警的链路劣化
+
+应用场景：
+
+- **大规模集群日常巡检时**：持续掌握链路和交换机的健康水位，
+  无需逐台设备人工检查
+- **训练任务开跑前**：提前验证网络路径健康，避免长时间训练任务
+  因链路劣化或配置故障中断或降速
 
 ## 架构
 
@@ -55,21 +106,15 @@ NVIDIA Topograph、NetQ 导入拓扑，以统一的 Kubernetes 资源模型对�
 ## 快速开始
 
 按照[部署指南](./docs/getting-started.zh.md)安装 Unifabric。该文档覆盖默认的
-SONiC RoCE 路径，以及 InfiniBand 和 NVIDIA Spectrum-X 环境。
+SONiC RoCE 网络，也支持 InfiniBand 和 NVIDIA Spectrum-X 两种环境。
 
-要了解每种网络使用哪种发现方式，参见[拓扑发现概念](./docs/concepts/topology-discovery.zh.md)。
+安装完成后，使用各项功能参考:
 
-## 文档导航
-
-| 分类 | 链接 |
-| --- | --- |
-| 文档索引 | [docs/README.zh.md](./docs/README.zh.md) |
-| 架构与概念 | [架构总览](./docs/concepts/architecture.zh.md)、[拓扑发现](./docs/concepts/topology-discovery.zh.md) |
-| 快速开始 | [部署 Unifabric](./docs/getting-started.zh.md) |
-| 功能使用 | [拓扑可视化](./docs/usage/topology-visualization.zh.md)、[RDMA 指标](./docs/usage/rdma-metrics.zh.md)、[RDMA 流归因](./docs/usage/rdma-flow.zh.md)、[拓扑感知调度](./docs/usage/workload-tas.zh.md)、[Switch Agent 部署](./docs/usage/switch-agent-deployment.zh.md) |
-| API 参考 | [FabricNode、Switch、Topology、RDMAEndpoint](./docs/reference/README.zh.md) |
-| Helm values | [Chart 参考](./chart/README.md) |
-| 设计文档 | [docs/design/](./docs/design/) |
+- 拓扑识别与可视化：[拓扑可视化](./docs/usage/topology-visualization.zh.md)
+- 拓扑感知调度：[Kueue / Volcano / KAI 调度集成](./docs/usage/workload-tas.zh.md)
+- RDMA 指标观测：[RDMA 指标](./docs/usage/rdma-metrics.zh.md)
+- RDMA 流归因：[RDMA 流归因](./docs/usage/rdma-flow.zh.md)
+- 交换机流量观测：[Switch Agent 部署](./docs/usage/switch-agent-deployment.zh.md)
 
 ## 路线图
 
