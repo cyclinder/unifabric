@@ -12,7 +12,8 @@ After you finish this guide, the cluster will show the following results:
 
 - A `FabricNode` resource exists for every node and lists its RDMA NICs by
   purpose: scale-out, storage, or scale-up.
-- Node RDMA metrics are visible in the `Unifabric RDMA Node` Grafana dashboard.
+- Node RDMA metrics are exposed by the Agent metrics endpoint for Prometheus
+  to collect.
 
 Topology discovery is environment-specific. After this guide, continue with the
 guide for your physical network in [Next Steps](#next-steps).
@@ -139,17 +140,27 @@ status:
       state: up
 ```
 
-### 2. Read Node RDMA Metrics
+### 2. Check the Node RDMA Metrics Endpoint
 
-Open the `Unifabric RDMA Node` dashboard in Grafana and select the cluster and
-the node at the top of the page. Expand groups such as `Throughput`, `Basic`,
-`RoCE`, `QoS`, or `Interface`. Make sure that the dashboard lists the RDMA
-devices, the network interfaces, and the metrics of the node.
+Query the Agent metrics endpoint directly to make sure that the metrics
+collector produces `unifabric_` metrics:
 
-![Unifabric RDMA Node dashboard](images/unifabric-rdma-node-dashboard.png)
+```bash
+POD_IP=$(kubectl -n unifabric-system get pod \
+  -l app.kubernetes.io/component=unifabric-agent \
+  -o jsonpath='{.items[0].status.podIP}')
 
-If the dashboard shows the devices, the `ifname` values, and the metric data of
-the target node, Prometheus collects the Agent metrics correctly.
+curl -s "http://${POD_IP}:8082/metrics" | grep '^unifabric_' | head
+```
+
+```text
+<!-- TODO: capture output from a real environment -->
+```
+
+If the endpoint returns metrics with the `unifabric_` prefix, the Agent metrics
+collection works. The cluster carries no workload traffic at this point, so do
+not interpret the metric values. The [RDMA metrics guide](./usage/rdma-metrics.md)
+describes the metrics and the Grafana dashboards.
 
 ## Troubleshooting
 
@@ -185,7 +196,7 @@ First make sure that the preconditions hold:
 4. Make sure that no NIC is misclassified. NICs that the storage or scale-up
    selector matches do not appear in `status.scaleOutNics`.
 
-### Agent Metrics or the Grafana Dashboard Has No Data
+### The Agent Metrics Endpoint Has No Data
 
 Make sure that Agent metrics are enabled, then inspect the Service and the
 ServiceMonitor:
@@ -201,26 +212,14 @@ kubectl -n unifabric-system get servicemonitor unifabric-agent-metrics
 ```
 
 If `nodeMetrics.serviceMonitor.enabled` was disabled during the installation,
-the absence of a `ServiceMonitor` is expected. Query the Agent metrics endpoint
-directly to make sure that the collector produces metrics:
-
-```bash
-POD_IP=$(kubectl -n unifabric-system get pod \
-  -l app.kubernetes.io/component=unifabric-agent \
-  -o jsonpath='{.items[0].status.podIP}')
-
-curl -s "http://${POD_IP}:8082/metrics" | grep '^unifabric_'
-```
-
-```text
-<!-- TODO: capture output from a real environment -->
-```
+the absence of a `ServiceMonitor` is expected. Then repeat the endpoint check
+in [Verification](#2-check-the-node-rdma-metrics-endpoint):
 
 - If the endpoint returns no metrics, make sure that `nodeMetrics.enabled=true`.
   Then read the Agent logs and the RDMA devices under `/sys/class/infiniband`.
-- If the endpoint returns metrics but the Grafana dashboard has no data, make
-  sure that Prometheus discovered the `unifabric-agent-metrics` target and that
-  the Grafana data source, the cluster, and the node variables are correct.
+- If the endpoint returns metrics but Prometheus or Grafana has no data, use the
+  [RDMA metrics guide](./usage/rdma-metrics.md) to troubleshoot the
+  observability pipeline.
 
 ## Uninstall
 

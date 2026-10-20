@@ -11,7 +11,7 @@ English version: [getting-started.md](./getting-started.md)
 
 - 每个节点都有对应的 `FabricNode` 资源,按用途列出其 RDMA 网卡:scale-out、
   storage 或 scale-up。
-- 节点 RDMA 指标可以在 Grafana 的 `Unifabric RDMA Node` 看板中查看。
+- Agent 对外暴露节点 RDMA 指标端点,可供 Prometheus 采集。
 
 拓扑发现与具体环境相关。完成本文后,按[下一步](#下一步)选择对应物理网络的指南
 继续。
@@ -130,16 +130,25 @@ status:
       state: up
 ```
 
-### 2. 查看节点 RDMA 指标
+### 2. 检查节点 RDMA 指标端点
 
-打开 Grafana 的 `Unifabric RDMA Node` 看板,在页面顶部选择集群和节点。展开
-`Throughput`、`Basic`、`RoCE`、`QoS` 或 `Interface` 等分组。确认看板列出了该
-节点的 RDMA device、网络接口及对应指标。
+直接访问 Agent metrics 端点,确认指标采集器已经产生 `unifabric_` 指标:
 
-![Unifabric RDMA Node 看板](images/unifabric-rdma-node-dashboard.png)
+```bash
+POD_IP=$(kubectl -n unifabric-system get pod \
+  -l app.kubernetes.io/component=unifabric-agent \
+  -o jsonpath='{.items[0].status.podIP}')
 
-看板中能看到目标节点的 device、`ifname` 和指标数据,说明 Prometheus 已正确采集
-Agent 指标。
+curl -s "http://${POD_IP}:8082/metrics" | grep '^unifabric_' | head
+```
+
+```text
+<!-- TODO: 待真实环境采集输出 -->
+```
+
+端点返回 `unifabric_` 前缀的指标,说明 Agent 指标采集已正常工作。此时集群中还
+没有业务流量,不需要解读具体指标值。指标说明和 Grafana 看板的使用参见
+[RDMA 指标指南](./usage/rdma-metrics.zh.md)。
 
 ## 故障排查
 
@@ -174,7 +183,7 @@ Agent 指标。
 4. 确认网卡没有被错误归类。被 storage 或 scale-up selector 匹配的网卡不会出现在
    `status.scaleOutNics` 中。
 
-### Agent 指标或 Grafana 看板没有数据
+### Agent 指标端点没有数据
 
 确认 Agent metrics 已启用,然后检查 Service 和 ServiceMonitor:
 
@@ -189,24 +198,12 @@ kubectl -n unifabric-system get servicemonitor unifabric-agent-metrics
 ```
 
 如果安装时关闭了 `nodeMetrics.serviceMonitor.enabled`,没有 `ServiceMonitor`
-属于正常情况。直接访问 Agent metrics 端点,确认采集器已经产生指标:
-
-```bash
-POD_IP=$(kubectl -n unifabric-system get pod \
-  -l app.kubernetes.io/component=unifabric-agent \
-  -o jsonpath='{.items[0].status.podIP}')
-
-curl -s "http://${POD_IP}:8082/metrics" | grep '^unifabric_'
-```
-
-```text
-<!-- TODO: 待真实环境采集输出 -->
-```
+属于正常情况。然后重新执行[验证](#2-检查节点-rdma-指标端点)中的端点检查:
 
 - 如果端点没有返回指标,确认 `nodeMetrics.enabled=true`,然后查看 Agent 日志和
   `/sys/class/infiniband` 下的 RDMA 设备。
-- 如果端点有指标,但 Grafana 看板没有数据,确认 Prometheus 已发现
-  `unifabric-agent-metrics` target,且 Grafana 数据源、集群和节点变量选择正确。
+- 如果端点有指标,但 Prometheus 或 Grafana 侧没有数据,参见
+  [RDMA 指标指南](./usage/rdma-metrics.zh.md)排查观测链路。
 
 ## 卸载
 
