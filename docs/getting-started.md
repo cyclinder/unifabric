@@ -5,9 +5,9 @@
 ## Introduction and Deployment Goals
 
 This guide installs the Unifabric base components with Helm: the Controller, the
-Agent, and the observability components. It then selects the topology-discovery
-method for the physical network of the cluster: SONiC RoCE, InfiniBand, or
-Spectrum-X.
+Agent, and the observability components. The default installation works on a
+SONiC RoCE fabric. If the cluster uses InfiniBand or Spectrum-X, the reader
+changes a small set of Helm options.
 
 After you finish this guide, the cluster will show the following results:
 
@@ -47,6 +47,33 @@ helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
 <!-- TODO: capture output from a real environment -->
 ```
 
+Topology discovery starts when the installation completes. Topology discovery
+converts the physical adjacency of the network into hierarchical performance
+domains and writes them to Node labels. `scale-out.unifabric.io/tier-1` is the
+tier closest to the Node, followed by `tier-2`, `tier-3`, and so on.
+
+The chart sets `topoDiscovery.scaleOut.mode` to `unifabric-roce` by default.
+This mode is for clusters where SONiC switches carry the RoCE network. RoCE is
+RDMA over Converged Ethernet. Unifabric discovers the scale-out topology from
+LLDP neighbors. LLDP is a protocol that devices use to announce themselves to
+their link peers. Make sure that LLDP is enabled on every switch. If the
+cluster uses an InfiniBand or Spectrum-X fabric instead, change the
+topology-discovery options as described in
+[Other Network Environments](#other-network-environments).
+
+If the RoCE network also carries the storage network, add this option to the
+installation command:
+
+```bash
+--set topoDiscovery.storage.mode=unifabric-roce
+```
+
+With node-side LLDP alone, discovery produces only tier 1: the leaf switches
+that the nodes connect to. To discover the spine and core tiers above the
+leaves, declare the upper switches or run the switch-agent on the switches after
+the installation. The [topology discovery guide](./usage/topology-discovery.md)
+describes both options.
+
 By default, Unifabric classifies all RDMA NICs on a node as scale-out. If a node
 has RDMA NICs for different purposes, add the matching selector to the
 installation command with `--set`.
@@ -84,40 +111,11 @@ In mainland China, add these options to accelerate image pulls:
 --set nvidiaTopograph.image.repository=ghcr.io/nvidia/topograph
 ```
 
-## Configure Topology Discovery
+## Other Network Environments
 
-Topology discovery converts the physical adjacency of the network into
-hierarchical performance domains and writes them to Node labels.
-`scale-out.unifabric.io/tier-1` is the tier closest to the Node, followed by
-`tier-2`, `tier-3`, and so on. Select the section for the physical network of
-the cluster and add the matching options to the installation command:
-
-| Physical network | Discovery method | Required configuration |
-| --- | --- | --- |
-| [SONiC RoCE](#sonic-roce-fabric) | Built-in Unifabric LLDP discovery | Enabled by default, no extra options |
-| [InfiniBand](#infiniband-fabric) | NVIDIA Topograph | Two Helm options |
-| [Spectrum-X](#spectrum-x-fabric) | NVIDIA Topograph with NetQ | A NetQ credentials Secret and four Helm options |
-
-### SONiC RoCE Fabric
-
-Use this section when SONiC switches carry the RoCE network. RoCE is RDMA over
-Converged Ethernet. Make sure that LLDP is enabled on every switch. LLDP is a
-protocol that devices use to announce themselves to their link peers.
-
-The chart sets `topoDiscovery.scaleOut.mode` to `unifabric-roce` by
-default, so Unifabric discovers the scale-out topology from LLDP neighbors
-without extra options. If the RoCE network also carries the storage network, add
-this option to the installation command:
-
-```bash
---set topoDiscovery.storage.mode=unifabric-roce
-```
-
-With node-side LLDP alone, discovery produces only tier 1: the leaf switches
-that the nodes connect to. To discover the spine and core tiers above the
-leaves, declare the upper switches or run the switch-agent on the switches after
-the installation. The [topology discovery guide](./usage/topology-discovery.md)
-describes both options.
+The default installation is for a SONiC RoCE fabric. If the cluster uses
+InfiniBand or Spectrum-X, keep the same installation flow and change only the
+topology-discovery options in the matching subsection below.
 
 ### InfiniBand Fabric
 

@@ -31,7 +31,7 @@ nodes participating in scheduling, do not add it to the topology configuration.
 
 Before using a TAS queue, complete the Unifabric installation and the
 topology-discovery configuration for your fabric in
-[Deploy Unifabric](../getting-started.md#configure-topology-discovery). For the
+[Deploy Unifabric](../getting-started.md). For the
 SONiC switch onboarding options and the label semantics, see the
 [topology discovery guide](./topology-discovery.md). Then validate the topology
 results below so you know the expected Node labels are in place.

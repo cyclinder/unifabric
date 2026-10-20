@@ -22,8 +22,8 @@ Scheduler 时，拓扑层级应按从粗到细排列；如果某一层 label 没
 
 ## 安装拓扑发现
 
-使用 TAS 队列前，先按[部署 Unifabric](../getting-started.zh.md#配置拓扑发现)完成安装，
-并选择对应 fabric 的拓扑发现配置。SONiC 交换机接入方式和 label 语义参见
+使用 TAS 队列前，先按[部署 Unifabric](../getting-started.zh.md)完成安装，
+并配置对应 fabric 的拓扑发现参数。SONiC 交换机接入方式和 label 语义参见
 [拓扑发现指南](./topology-discovery.zh.md)。然后按下面的小节验证拓扑结果，确认
 目标节点已经写入预期的 Node label。
 

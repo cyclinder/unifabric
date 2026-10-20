@@ -4,8 +4,9 @@ English version: [getting-started.md](./getting-started.md)
 
 ## 简介与部署目标
 
-本文使用 Helm 安装 Unifabric 基础组件:Controller、Agent 和观测组件,并按集群
-的物理网络(SONiC RoCE、InfiniBand 或 Spectrum-X)选择拓扑发现方式。
+本文使用 Helm 安装 Unifabric 基础组件:Controller、Agent 和观测组件。默认安装
+面向 SONiC RoCE 网络;如果集群使用 InfiniBand 或 Spectrum-X,只需修改少量 Helm
+参数。
 
 完成本文后,集群将呈现以下结果:
 
@@ -41,6 +42,27 @@ helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
 <!-- TODO: 待真实环境采集输出 -->
 ```
 
+安装完成后,拓扑发现随即开始工作。拓扑发现把物理网络的邻接关系整理为分层性能域,
+并写入 Node label:`scale-out.unifabric.io/tier-1` 表示离 Node 最近的一层,其上
+依次为 `tier-2`、`tier-3` 等。
+
+Chart 默认把 `topoDiscovery.scaleOut.mode` 设置为 `unifabric-roce`,适用于
+SONiC 交换机承载 RoCE 网络的集群。RoCE 是在融合以太网上运行的 RDMA。Unifabric
+通过 LLDP 邻居发现 scale-out 拓扑。LLDP 是一种设备向链路对端通告自身信息的
+协议,确认每台交换机都启用了 LLDP。如果集群使用 InfiniBand 或 Spectrum-X
+网络,按[其他网络环境](#其他网络环境)修改拓扑发现参数。
+
+如果 RoCE 网络同时承载存储网络,在安装命令中追加:
+
+```bash
+--set topoDiscovery.storage.mode=unifabric-roce
+```
+
+只依靠节点侧 LLDP 时,发现结果只包含 tier 1(节点直连的 leaf 交换机)。要发现
+leaf 以上的 spine、core 等层级,在安装完成后按
+[拓扑发现指南](./usage/topology-discovery.zh.md)声明上层交换机,或在交换机上
+运行 switch-agent 自动发现。
+
 默认情况下,Unifabric 把节点上的所有 RDMA 网卡归类为 scale-out。如果节点上存在
 不同用途的 RDMA 网卡,在安装命令中用 `--set` 追加对应的 selector。
 
@@ -73,35 +95,10 @@ Unifabric 会把 `eth5` 和 `eth6` 归类为 storage,其余四张 RDMA 网卡仍
 --set nvidiaTopograph.image.repository=ghcr.io/nvidia/topograph
 ```
 
-## 配置拓扑发现
+## 其他网络环境
 
-拓扑发现把物理网络的邻接关系整理为分层性能域,并写入 Node label。
-`scale-out.unifabric.io/tier-1` 表示离 Node 最近的一层,其上依次为 `tier-2`、
-`tier-3` 等。按集群的物理网络选择下面的一个小节,把对应参数追加到安装命令中:
-
-| 物理网络 | 发现方式 | 需要的配置 |
-| --- | --- | --- |
-| [SONiC RoCE](#sonic-roce-网络) | Unifabric 内置 LLDP 发现 | 默认启用,无需额外参数 |
-| [InfiniBand](#infiniband-网络) | NVIDIA Topograph | 2 个 Helm 参数 |
-| [Spectrum-X](#spectrum-x-网络) | NVIDIA Topograph + NetQ | NetQ 凭据 Secret 和 4 个 Helm 参数 |
-
-### SONiC RoCE 网络
-
-适用于 SONiC 交换机承载 RoCE 网络的集群。RoCE 是在融合以太网上运行的 RDMA。
-确认每台交换机都启用了 LLDP。LLDP 是一种设备向链路对端通告自身信息的协议。
-
-Chart 默认把 `topoDiscovery.scaleOut.mode` 设置为 `unifabric-roce`,由
-Unifabric 通过 LLDP 邻居发现 scale-out 拓扑,无需额外参数。如果 RoCE 网络同时
-承载存储网络,在安装命令中追加:
-
-```bash
---set topoDiscovery.storage.mode=unifabric-roce
-```
-
-只依靠节点侧 LLDP 时,发现结果只包含 tier 1(节点直连的 leaf 交换机)。要发现
-leaf 以上的 spine、core 等层级,在安装完成后按
-[拓扑发现指南](./usage/topology-discovery.zh.md)声明上层交换机,或在交换机上
-运行 switch-agent 自动发现。
+默认安装面向 SONiC RoCE 网络。如果集群使用 InfiniBand 或 Spectrum-X,安装流程
+不变,只需按下面对应的小节修改拓扑发现参数。
 
 ### InfiniBand 网络
 

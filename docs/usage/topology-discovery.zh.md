@@ -36,9 +36,8 @@ GPU 互联拓扑,仅 InfiniBand 场景的 `nv-topograph` 模式写入。
 
 继续之前,确认以下各项均成立:
 
-- [ ] 已按[部署 Unifabric](../getting-started.zh.md) 完成安装,并在
-      [配置拓扑发现](../getting-started.zh.md#配置拓扑发现)中选择了对应物理网络
-      的 Helm 参数。
+- [ ] 已按[部署 Unifabric](../getting-started.zh.md) 完成安装,并配置了对应
+      物理网络的拓扑发现参数。
 - [ ] 节点上的 RDMA 设备在 `/sys/class/infiniband` 下可见。
 
 ## 配置与使用

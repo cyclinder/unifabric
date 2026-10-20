@@ -43,8 +43,8 @@ the InfiniBand scenario writes them.
 Make sure that each item below is true before you continue:
 
 - [ ] Unifabric is installed through [Deploy Unifabric](../getting-started.md),
-      and the Helm options for the physical network are selected in
-      [Configure Topology Discovery](../getting-started.md#configure-topology-discovery).
+      with the topology-discovery options for the physical network of the
+      cluster.
 - [ ] The RDMA devices of the nodes are visible under `/sys/class/infiniband`.
 
 ## Configuration and Usage
