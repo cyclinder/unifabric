@@ -25,21 +25,19 @@ Make sure that each item below is true before you continue:
 - [ ] The cluster nodes have RDMA NICs that connect to a SONiC RoCE,
       InfiniBand, or NVIDIA Spectrum-X fabric, and the RDMA driver (for
       example NVIDIA DOCA-OFED) is installed on the nodes.
-- [ ] `kubectl` and Helm are installed on the host that you use for the
-      installation.
+- [ ] `kubectl` and Helm (v3.13 or later) are installed on the host that you
+      use for the installation.
 
 ## Installation
 
-The command below installs the latest Unifabric release. To select a specific
-version, read the [releases](https://github.com/unifabric-io/unifabric/releases)
-page. Run it on the host with `kubectl` and Helm access to the cluster:
+The command below installs the latest Unifabric release. Helm resolves the
+latest chart version automatically. To install a specific version, add
+`--version <x.y.z>`; the available versions are listed on the
+[releases](https://github.com/unifabric-io/unifabric/releases) page. Run it on
+the host with `kubectl` and Helm access to the cluster:
 
 ```bash
-LATEST_TAG=$(curl -fsSL https://api.github.com/repos/unifabric-io/unifabric/releases/latest | grep '"tag_name":' | cut -d '"' -f4)
-CHART_VERSION="${LATEST_TAG#v}"
-
 helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
-  --version "${CHART_VERSION}" \
   --namespace unifabric-system \
   --create-namespace \
   --wait

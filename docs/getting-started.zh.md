@@ -21,20 +21,17 @@ English version: [getting-started.md](./getting-started.md)
 - [ ] 可以访问目标 Kubernetes 集群。
 - [ ] 集群节点配备 RDMA 网卡,并接入 SONiC RoCE、InfiniBand 或 NVIDIA
       Spectrum-X 其中一种网络,节点上已安装 RDMA 驱动(如 NVIDIA DOCA-OFED)。
-- [ ] 执行安装的主机上已安装 `kubectl` 和 Helm。
+- [ ] 执行安装的主机上已安装 `kubectl` 和 Helm(v3.13 及以上)。
 
 ## 安装
 
-下面的命令安装最新版本的 Unifabric。要选择特定版本,查看
+下面的命令安装最新版本的 Unifabric,Helm 会自动解析最新的 chart 版本。要安装
+特定版本,追加 `--version <x.y.z>`,可用版本见
 [releases](https://github.com/unifabric-io/unifabric/releases) 页面。在可以用
 `kubectl` 和 Helm 访问集群的主机上执行:
 
 ```bash
-LATEST_TAG=$(curl -fsSL https://api.github.com/repos/unifabric-io/unifabric/releases/latest | grep '"tag_name":' | cut -d '"' -f4)
-CHART_VERSION="${LATEST_TAG#v}"
-
 helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
-  --version "${CHART_VERSION}" \
   --namespace unifabric-system \
   --create-namespace \
   --wait
