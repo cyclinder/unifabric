@@ -22,6 +22,9 @@ After you finish this guide, the cluster will show the following results:
 Make sure that each item below is true before you continue:
 
 - [ ] You have access to the target Kubernetes cluster.
+- [ ] The cluster nodes have RDMA NICs that connect to a SONiC RoCE,
+      InfiniBand, or NVIDIA Spectrum-X fabric, and the RDMA driver (for
+      example NVIDIA DOCA-OFED) is installed on the nodes.
 - [ ] `kubectl` and Helm are installed on the host that you use for the
       installation.
 

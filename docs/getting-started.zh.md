@@ -19,6 +19,8 @@ English version: [getting-started.md](./getting-started.md)
 继续之前,确认以下各项均成立:
 
 - [ ] 可以访问目标 Kubernetes 集群。
+- [ ] 集群节点配备 RDMA 网卡,并接入 SONiC RoCE、InfiniBand 或 NVIDIA
+      Spectrum-X 其中一种网络,节点上已安装 RDMA 驱动(如 NVIDIA DOCA-OFED)。
 - [ ] 执行安装的主机上已安装 `kubectl` 和 Helm。
 
 ## 安装
