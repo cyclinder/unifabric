@@ -41,9 +41,6 @@ helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
   --namespace unifabric-system \
   --create-namespace \
   --wait
-```
-
-```text
 Release "unifabric" does not exist. Installing it now.
 Pulled: ghcr.io/unifabric-io/charts/unifabric:0.4.1
 Digest: sha256:5b1d2f6c8a9e0d3b4a7c6e5f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b
@@ -55,12 +52,7 @@ REVISION: 1
 TEST SUITE: None
 ```
 
-Topology discovery starts when the installation completes. Topology discovery
-converts the physical adjacency of the network into hierarchical performance
-domains and writes them to Node labels. `scale-out.unifabric.io/tier-1` is the
-tier closest to the Node, followed by `tier-2`, `tier-3`, and so on.
-
-The chart sets `topoDiscovery.scaleOut.mode` to `unifabric-roce` by default.
+1. The chart sets `topoDiscovery.scaleOut.mode` to `unifabric-roce` by default.
 This mode is for clusters where SONiC switches carry the RoCE network. RoCE is
 RDMA over Converged Ethernet. Unifabric discovers the scale-out topology from
 LLDP neighbors. LLDP is a protocol that devices use to announce themselves to
@@ -69,17 +61,17 @@ cluster uses an InfiniBand or Spectrum-X fabric instead, change the
 topology-discovery options as described in
 [Other Network Environments](#other-network-environments).
 
-With node-side LLDP alone, discovery produces only tier 1: the leaf switches
+> With node-side LLDP alone, discovery produces only tier 1: the leaf switches
 that the nodes connect to. To discover the spine and core tiers above the
 leaves, declare the upper switches or run the switch-agent on the switches after
 the installation. The [topology discovery guide](./usage/topology-discovery.md)
 describes both options.
 
-By default, Unifabric classifies all RDMA NICs on a node as scale-out. If a node
+2. By default, Unifabric classifies all RDMA NICs on a node as scale-out. If a node
 has RDMA NICs for different purposes, add the matching selector to the
 installation command with `--set`.
 
-For example, a node has six RDMA NICs named `eth1` through `eth6`. The NICs
+> For example, a node has six RDMA NICs named `eth1` through `eth6`. The NICs
 `eth1` through `eth4` carry scale-out traffic, and `eth5` and `eth6` carry
 storage traffic. Reference architectures of standard GPU servers, such as
 DGX H100/B200 and GB200/GB300 NVL72, commonly provide two dedicated storage
@@ -89,13 +81,13 @@ NICs. Add this option to the installation command:
 --set fabricNode.storageInterfaceSelector="interface=eth5\,eth6"
 ```
 
-Unifabric then classifies `eth5` and `eth6` as storage. The other four RDMA
+> Unifabric then classifies `eth5` and `eth6` as storage. The other four RDMA
 NICs remain scale-out by the default rule. The selector also supports wildcards
 and CIDRs, for example `interface=eth*,!eth9` or `cidr=172.17.0.0/16`. The
 [Helm values reference](../chart/README.md) describes the complete selector
 syntax.
 
-If the node has storage NICs as in this example, also add this option so that
+> If the node has storage NICs as in this example, also add this option so that
 Unifabric discovers the storage topology over LLDP:
 
 ```bash
@@ -110,7 +102,7 @@ options to the installation command:
 --set grafanaDashboard.enabled=false
 ```
 
-In mainland China, add these options to accelerate image pulls:
+3. In mainland China, add these options to accelerate image pulls:
 
 ```bash
 --set global.registry=m.daocloud.io \

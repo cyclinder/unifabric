@@ -36,9 +36,6 @@ helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
   --namespace unifabric-system \
   --create-namespace \
   --wait
-```
-
-```text
 Release "unifabric" does not exist. Installing it now.
 Pulled: ghcr.io/unifabric-io/charts/unifabric:0.4.1
 Digest: sha256:5b1d2f6c8a9e0d3b4a7c6e5f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b
@@ -50,25 +47,21 @@ REVISION: 1
 TEST SUITE: None
 ```
 
-安装完成后,拓扑发现随即开始工作。拓扑发现把物理网络的邻接关系整理为分层性能域,
-并写入 Node label:`scale-out.unifabric.io/tier-1` 表示离 Node 最近的一层,其上
-依次为 `tier-2`、`tier-3` 等。
-
-Chart 默认把 `topoDiscovery.scaleOut.mode` 设置为 `unifabric-roce`,适用于
+1. Chart 默认把 `topoDiscovery.scaleOut.mode` 设置为 `unifabric-roce`,适用于
 SONiC 交换机承载 RoCE 网络的集群。RoCE 是在融合以太网上运行的 RDMA。Unifabric
 通过 LLDP 邻居发现 scale-out 拓扑。LLDP 是一种设备向链路对端通告自身信息的
 协议,确认每台交换机都启用了 LLDP。如果集群使用 InfiniBand 或 Spectrum-X
 网络,按[其他网络环境](#其他网络环境)修改拓扑发现参数。
 
-只依靠节点侧 LLDP 时,发现结果只包含 tier 1(节点直连的 leaf 交换机)。要发现
+> 只依靠节点侧 LLDP 时,发现结果只包含 tier 1(节点直连的 leaf 交换机)。要发现
 leaf 以上的 spine、core 等层级,在安装完成后按
 [拓扑发现指南](./usage/topology-discovery.zh.md)声明上层交换机,或在交换机上
 运行 switch-agent 自动发现。
 
-默认情况下,Unifabric 把节点上的所有 RDMA 网卡归类为 scale-out。如果节点上存在
+2. 默认情况下,Unifabric 把节点上的所有 RDMA 网卡归类为 scale-out。如果节点上存在
 不同用途的 RDMA 网卡,在安装命令中用 `--set` 追加对应的 selector。
 
-例如,一个节点有 `eth1` 到 `eth6` 六张 RDMA 网卡,其中 `eth1` 到 `eth4` 承载
+> 例如,一个节点有 `eth1` 到 `eth6` 六张 RDMA 网卡,其中 `eth1` 到 `eth4` 承载
 scale-out 流量,`eth5` 和 `eth6` 承载 storage 流量。标准 GPU 服务器
 (如 DGX H100/B200、GB200/GB300 NVL72)的参考架构通常配备 2 张专用存储网卡。
 在安装命令中追加:
@@ -77,11 +70,11 @@ scale-out 流量,`eth5` 和 `eth6` 承载 storage 流量。标准 GPU 服务器
 --set fabricNode.storageInterfaceSelector="interface=eth5\,eth6"
 ```
 
-Unifabric 会把 `eth5` 和 `eth6` 归类为 storage,其余四张 RDMA 网卡仍按默认规则
+> Unifabric 会把 `eth5` 和 `eth6` 归类为 storage,其余四张 RDMA 网卡仍按默认规则
 归类为 scale-out。选择器还支持通配符和 CIDR,例如 `interface=eth*,!eth9` 或
 `cidr=172.17.0.0/16`。完整语法参见 [Helm values 参考](../chart/README.md)。
 
-如果像本例一样存在 storage 网卡,再追加以下参数,让 Unifabric 通过 LLDP 发现
+> 如果像本例一样存在 storage 网卡,再追加以下参数,让 Unifabric 通过 LLDP 发现
 存储网络拓扑:
 
 ```bash
@@ -95,7 +88,7 @@ Unifabric 会把 `eth5` 和 `eth6` 归类为 storage,其余四张 RDMA 网卡仍
 --set grafanaDashboard.enabled=false
 ```
 
-如果位于中国大陆,追加以下参数加速镜像拉取:
+3. 如果位于中国大陆,追加以下参数加速镜像拉取:
 
 ```bash
 --set global.registry=m.daocloud.io \
