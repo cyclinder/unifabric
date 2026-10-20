@@ -67,8 +67,6 @@ nodeMetrics:
   path: /metrics
   # -- ServiceMonitor settings used by Prometheus Operator to scrape node metrics.
   serviceMonitor:
-    # -- Create a Prometheus Operator ServiceMonitor for agent RDMA metrics.
-    enabled: true
     # -- Prometheus scrape interval for agent RDMA metrics.
     interval: 15s
     # -- Prometheus scrape timeout for agent RDMA metrics.
@@ -120,6 +118,10 @@ grafanaInstance:
   serviceType: NodePort
   # -- Extra labels added to the Grafana instance.
   labels: {}
+
+serviceMonitor:
+  # -- Apply ServiceMonitor CRs when enabled.
+  enabled: true
 
 controller:
   # -- Deploy the Unifabric controller.
@@ -198,6 +200,15 @@ controller:
     type: ClusterIP
     # -- Service port for controller metrics.
     port: 8080
+  serviceMonitor:
+    # -- Prometheus scrape interval for the controller metrics.
+    interval: 15s
+    # -- Prometheus scrape timeout for the controller metrics.
+    scrapeTimeout: 10s
+    # -- HTTP path scraped by the ServiceMonitor.
+    path: /metrics
+    # -- Extra labels added to the ServiceMonitor for Prometheus selection.
+    labels: {}
   config:
     # -- Controller log level. Valid values are debug, info, warn, and error.
     logLevel: info
@@ -410,8 +421,6 @@ ebpfFlowEventCollector:
     # -- Maximum time a partial batch waits.
     timeout: 1s
   serviceMonitor:
-    # -- Create a ServiceMonitor for the Collector's own metrics on port 8888.
-    enabled: true
     # -- Scrape interval for the Collector metrics.
     interval: 15s
     # -- Extra labels added to the ServiceMonitor.
@@ -508,7 +517,7 @@ ebpfFlowEventCollector:
         # -- Delete backing indices this long after rollover.
         deleteMinAge: 3d
     grafanaDatasource:
-      # -- Create a GrafanaDatasource for the data stream so the flow-sends-es dashboard works. Requires grafanaDashboard.kind GrafanaDashboard.
+      # -- Create a GrafanaDatasource for the data stream so the RDMA Pod and Workload send-detail panels work. Requires grafanaDashboard.kind GrafanaDashboard.
       enabled: true
     # -- Bundled single node Elasticsearch deployed only when endpoints is empty. FOR TESTING ONLY: single node, security without TLS, fixed credentials, disk watermarks disabled.
     bundled:

@@ -82,7 +82,7 @@ Unifabric 会把 `eth5` 和 `eth6` 归类为 storage,其余四张 RDMA 网卡仍
 如果集群没有 Prometheus Operator 或 Grafana Operator,在安装命令中追加:
 
 ```bash
---set nodeMetrics.serviceMonitor.enabled=false \
+--set serviceMonitor.enabled=false \
 --set grafanaDashboard.enabled=false
 ```
 
@@ -301,7 +301,7 @@ kubectl -n unifabric-system get servicemonitor unifabric-agent-metrics
 <!-- TODO: 待真实环境采集输出 -->
 ```
 
-如果安装时关闭了 `nodeMetrics.serviceMonitor.enabled`,没有 `ServiceMonitor`
+如果安装时关闭了 `serviceMonitor.enabled`,没有 `ServiceMonitor`
 属于正常情况。然后重新执行[验证](#2-检查节点-rdma-指标端点)中的端点检查:
 
 - 如果端点没有返回指标,确认 `nodeMetrics.enabled=true`,然后查看 Agent 日志和

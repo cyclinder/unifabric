@@ -98,7 +98,7 @@ If the cluster does not have Prometheus Operator or Grafana Operator, add these
 options to the installation command:
 
 ```bash
---set nodeMetrics.serviceMonitor.enabled=false \
+--set serviceMonitor.enabled=false \
 --set grafanaDashboard.enabled=false
 ```
 
@@ -331,7 +331,7 @@ kubectl -n unifabric-system get servicemonitor unifabric-agent-metrics
 <!-- TODO: capture output from a real environment -->
 ```
 
-If `nodeMetrics.serviceMonitor.enabled` was disabled during the installation,
+If `serviceMonitor.enabled` was disabled during the installation,
 the absence of a `ServiceMonitor` is expected. Then repeat the endpoint check
 in [Verification](#2-check-the-node-rdma-metrics-endpoint):
 
