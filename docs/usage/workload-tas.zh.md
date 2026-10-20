@@ -22,12 +22,10 @@ Scheduler 时，拓扑层级应按从粗到细排列；如果某一层 label 没
 
 ## 安装拓扑发现
 
-使用 TAS 队列前，先按 fabric 场景完成 Unifabric 安装。然后按下面的小节验证拓扑结果，确认
-目标节点已经写入预期的 Node label。安装步骤可根据下面不同场景跳转到对应文档。
-
-- [通用 SONiC RoCE](./getting-started-sonic-roce.zh.md)：适用于 SONiC 交换机承载 RoCE 网络的场景。
-- [Spectrum-X fabric](./getting-started-spectrum-x.zh.md)：适用于 Spectrum-X 交换机的场景。
-- [InfiniBand fabric](./getting-started-infiniband.zh.md)：适用于 NVIDIA InfiniBand 网络场景。
+使用 TAS 队列前，先按[部署 Unifabric](../getting-started.zh.md#配置拓扑发现)完成安装，
+并选择对应 fabric 的拓扑发现配置。SONiC 交换机接入方式和 label 语义参见
+[拓扑发现指南](./topology-discovery.zh.md)。然后按下面的小节验证拓扑结果，确认
+目标节点已经写入预期的 Node label。
 
 ## 验证拓扑结果
 
@@ -378,10 +376,7 @@ Pod 已准入但无法调度：
 
 拓扑 label 缺失或不稳定：
 
-- 回到对应安装文档排查拓扑发现组件：
-  [通用 SONiC RoCE](../getting-started-sonic-roce.zh.md)、
-  [Spectrum-X fabric](../getting-started-spectrum-x.zh.md) 或
-  [InfiniBand fabric](../getting-started-infiniband.zh.md)。
+- 按[拓扑发现指南的故障排查](./topology-discovery.zh.md#故障排查)排查拓扑发现组件。
 - 确认 Node 上真实存在的拓扑 label：
 
   ```bash

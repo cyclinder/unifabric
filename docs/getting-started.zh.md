@@ -1,20 +1,18 @@
-# 基础安装
+# 部署 Unifabric
 
 English version: [getting-started.md](./getting-started.md)
 
 ## 简介与部署目标
 
-本文使用 Helm 安装 Unifabric 基础组件:Controller、Agent 和观测组件。所有环境
-指南都建立在这次安装之上。
+本文使用 Helm 安装 Unifabric 基础组件:Controller、Agent 和观测组件,并按集群
+的物理网络(SONiC RoCE、InfiniBand 或 Spectrum-X)选择拓扑发现方式。
 
 完成本文后,集群将呈现以下结果:
 
 - 每个节点都有对应的 `FabricNode` 资源,按用途列出其 RDMA 网卡:scale-out、
   storage 或 scale-up。
+- Node 带有供调度器使用的 `scale-out.unifabric.io/tier-N` 拓扑 label。
 - Agent 对外暴露节点 RDMA 指标端点,可供 Prometheus 采集。
-
-拓扑发现与具体环境相关。完成本文后,按[下一步](#下一步)选择对应物理网络的指南
-继续。
 
 ## 前提条件
 
@@ -75,6 +73,99 @@ Unifabric 会把 `eth5` 和 `eth6` 归类为 storage,其余四张 RDMA 网卡仍
 --set agent.image.repository=ghcr.io/unifabric-io/unifabric-agent \
 --set nvidiaTopograph.image.repository=ghcr.io/nvidia/topograph
 ```
+
+## 配置拓扑发现
+
+拓扑发现把物理网络的邻接关系整理为分层性能域,并写入 Node label。
+`scale-out.unifabric.io/tier-1` 表示离 Node 最近的一层,其上依次为 `tier-2`、
+`tier-3` 等。按集群的物理网络选择下面的一个小节,把对应参数追加到安装命令中:
+
+| 物理网络 | 发现方式 | 需要的配置 |
+| --- | --- | --- |
+| [SONiC RoCE](#sonic-roce-网络) | Unifabric 内置 LLDP 发现 | 默认启用,无需额外参数 |
+| [InfiniBand](#infiniband-网络) | NVIDIA Topograph | 2 个 Helm 参数 |
+| [Spectrum-X](#spectrum-x-网络) | NVIDIA Topograph + NetQ | NetQ 凭据 Secret 和 4 个 Helm 参数 |
+
+### SONiC RoCE 网络
+
+适用于 SONiC 交换机承载 RoCE 网络的集群。RoCE 是在融合以太网上运行的 RDMA。
+确认每台交换机都启用了 LLDP。LLDP 是一种设备向链路对端通告自身信息的协议。
+
+Chart 默认把 `topoDiscovery.scaleOut.mode` 设置为 `unifabric-roce`,由
+Unifabric 通过 LLDP 邻居发现 scale-out 拓扑,无需额外参数。如果 RoCE 网络同时
+承载存储网络,在安装命令中追加:
+
+```bash
+--set topoDiscovery.storage.mode=unifabric-roce
+```
+
+只依靠节点侧 LLDP 时,发现结果只包含 tier 1(节点直连的 leaf 交换机)。要发现
+leaf 以上的 spine、core 等层级,在安装完成后按
+[拓扑发现指南](./usage/topology-discovery.zh.md)声明上层交换机,或在交换机上
+运行 switch-agent 自动发现。
+
+### InfiniBand 网络
+
+适用于使用 NVIDIA InfiniBand 组网的集群,例如 Mellanox 网卡运行在 IB 模式并
+连接 IB 交换机。确认节点上存在 IB 模式的 RDMA 设备。
+
+在安装命令中追加,为 scale-up 和 scale-out 网络选择 NVIDIA Topograph 作为
+拓扑写入器:
+
+```bash
+--set topoDiscovery.scaleUp.mode=nv-topograph \
+--set topoDiscovery.scaleOut.mode=nv-topograph
+```
+
+### Spectrum-X 网络
+
+适用于使用 Spectrum-X 交换机组网并由 NetQ 管理网络的集群。NetQ 是 NVIDIA 面向
+Spectrum-X 网络的网络管理平台,NVIDIA Topograph 通过 NetQ API 读取 fabric
+拓扑。确认以下各项均成立:
+
+- [ ] Spectrum-X fabric 已由 NetQ 管理,且 NetQ 中有对应的 fabric 拓扑数据。
+- [ ] 集群可以访问 NetQ API。
+- [ ] 已准备 NetQ API URL、用户名和密码。
+
+先创建 namespace 和 NetQ 凭据 Secret。下面的命令不会把凭据写入本地文件、Helm
+values 或 ConfigMap。Secret 必须包含名为 `credentials.yaml` 的 key:
+
+```bash
+kubectl create namespace unifabric-system --dry-run=client -o yaml | kubectl apply -f -
+
+read -r -p "NetQ username: " NETQ_USERNAME
+read -r -s -p "NetQ password: " NETQ_PASSWORD
+printf '\n'
+printf 'username: %s\npassword: %s\n' "${NETQ_USERNAME}" "${NETQ_PASSWORD}" |
+  kubectl -n unifabric-system create secret generic netq-credentials \
+    --from-file=credentials.yaml=/dev/stdin
+unset NETQ_USERNAME NETQ_PASSWORD
+```
+
+```text
+<!-- TODO: 待真实环境采集输出 -->
+```
+
+生产集群还必须为 Kubernetes Secret 启用静态加密,并限制读取该 Secret 的 RBAC
+权限。
+
+然后在安装命令中追加:
+
+```bash
+--set topoDiscovery.scaleOut.mode=nv-topograph \
+--set nvidiaTopograph.provider.name=netq \
+--set-string nvidiaTopograph.provider.params.apiUrl=https://netq.example.com \
+--set-string nvidiaTopograph.credentialsSecretName=netq-credentials
+```
+
+参数说明:
+
+| Helm value | 用途 |
+| --- | --- |
+| `topoDiscovery.scaleOut.mode` | 设置为 `nv-topograph`,由 NVIDIA Topograph 写入 scale-out label。 |
+| `nvidiaTopograph.provider.name` | 设置为 `netq`,表示通过 NetQ API 发现拓扑。 |
+| `nvidiaTopograph.provider.params.apiUrl` | NetQ API URL。 |
+| `nvidiaTopograph.credentialsSecretName` | 已有 NetQ 凭据 Secret 的名称,Secret 必须包含 `credentials.yaml` key。凭据仅以只读方式挂载到 Topograph Pod。 |
 
 ## 验证
 
@@ -150,6 +241,23 @@ curl -s "http://${POD_IP}:8082/metrics" | grep '^unifabric_' | head
 没有业务流量,不需要解读具体指标值。指标说明和 Grafana 看板的使用参见
 [RDMA 指标指南](./usage/rdma-metrics.zh.md)。
 
+### 3. 检查 Node 拓扑 label
+
+拓扑发现完成后,发现结果会写入 Node label:
+
+```bash
+kubectl get nodes -L scale-out.unifabric.io/tier-1,scale-out.unifabric.io/tier-2,kubernetes.io/hostname
+```
+
+```text
+<!-- TODO: 待真实环境采集输出 -->
+```
+
+确认每个参与发现的 Node 都有连续的 `scale-out.unifabric.io/tier-N` label,
+tier 1 离 Node 最近。SONiC RoCE 网络在只有节点侧 LLDP 时,只出现 tier 1 属于
+预期结果。label 语义、`Switch` 和 `Topology` 资源,以及交换机间层级的发现,
+参见[拓扑发现指南](./usage/topology-discovery.zh.md)。
+
 ## 故障排查
 
 ### FabricNode 没有发现预期的 RDMA 网卡
@@ -205,6 +313,11 @@ kubectl -n unifabric-system get servicemonitor unifabric-agent-metrics
 - 如果端点有指标,但 Prometheus 或 Grafana 侧没有数据,参见
   [RDMA 指标指南](./usage/rdma-metrics.zh.md)排查观测链路。
 
+### Node 没有拓扑 label
+
+拓扑发现链路与具体网络环境相关,按
+[拓扑发现指南的故障排查](./usage/topology-discovery.zh.md#故障排查)逐项检查。
+
 ## 卸载
 
 删除 Helm release:
@@ -230,18 +343,8 @@ kubectl delete crd fabricnodes.unifabric.io switches.unifabric.io topologies.uni
 
 ## 下一步
 
-按物理网络选择对应指南继续。每篇指南都使用 `helm upgrade --reuse-values`,只修改
-所选网络相关的 Helm values,其他基础安装配置保持不变。
-
-- 使用运行 SONiC 的交换机组网,阅读
-  [在通用 SONiC RoCE 网络部署 Unifabric](./getting-started-sonic-roce.zh.md)。
-- 使用 Spectrum-X 交换机组网并由 NetQ 管理网络,阅读
-  [在 Spectrum-X 网络部署 Unifabric](./getting-started-spectrum-x.zh.md)。
-- 使用 NVIDIA InfiniBand 组网,阅读
-  [在 InfiniBand 网络部署 Unifabric](./getting-started-infiniband.zh.md)。
-
-拓扑发现正常工作后,继续阅读功能使用文档:
-
+- 深入拓扑发现:声明 SONiC 上层交换机、部署 switch-agent、理解 label 语义与
+  `Topology` 资源,参见[拓扑发现指南](./usage/topology-discovery.zh.md)。
 - 在调度器中使用这些 label:参见 [Kueue TAS 工作负载示例](./usage/workload-tas.zh.md)。
 - 渲染拓扑:参见[拓扑可视化指南](./usage/topology-visualization.zh.md)。
 - 观测 RDMA 指标:参见 [RDMA 指标指南](./usage/rdma-metrics.zh.md)。

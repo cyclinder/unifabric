@@ -17,16 +17,8 @@ Agent 采集依赖本机 Linux sysfs、containerd 运行时状态和 `FabricNode
 
 ## 安装入口
 
-使用 RDMA metrics 前，先按 fabric 场景完成 Unifabric 安装，并在安装文档中开启
-`nodeMetrics` 和 dashboard。安装步骤见[文档索引](../README.zh.md)中的“快速开始”。
-
-场景入口：
-
-| 场景 | 安装文档 |
-| --- | --- |
-| 通用 SONiC RoCE | [通用 SONiC RoCE](../getting-started-sonic-roce.zh.md) |
-| Spectrum-X fabric | [Spectrum-X fabric](../getting-started-spectrum-x.zh.md) |
-| InfiniBand fabric | [InfiniBand fabric](../getting-started-infiniband.zh.md) |
+使用 RDMA metrics 前，先按[部署 Unifabric](../getting-started.zh.md)完成安装，并在
+安装时开启 `nodeMetrics` 和 dashboard。
 
 Prometheus Operator 已安装时，才能使用 chart 渲染的 `ServiceMonitor`。Grafana sidecar 或
 Grafana Operator 已安装时，才能自动导入 chart 渲染的 dashboard。

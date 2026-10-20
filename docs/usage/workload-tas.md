@@ -29,14 +29,12 @@ nodes participating in scheduling, do not add it to the topology configuration.
 
 ## Install Topology Discovery
 
-Before using a TAS queue, complete the Unifabric installation for your fabric
-scenario. Then validate the topology results below so you know the expected
-Node labels are in place. Use the scenario links below to jump to the
-corresponding document.
-
-- [General SONiC RoCE](./getting-started-sonic-roce.md): For scenarios where SONiC switches carry the RoCE network.
-- [Spectrum-X fabric](./getting-started-spectrum-x.md): For Spectrum-X switch scenarios.
-- [InfiniBand fabric](./getting-started-infiniband.md): For NVIDIA InfiniBand network scenarios.
+Before using a TAS queue, complete the Unifabric installation and the
+topology-discovery configuration for your fabric in
+[Deploy Unifabric](../getting-started.md#configure-topology-discovery). For the
+SONiC switch onboarding options and the label semantics, see the
+[topology discovery guide](./topology-discovery.md). Then validate the topology
+results below so you know the expected Node labels are in place.
 
 ## Validate Topology Results
 
@@ -393,10 +391,8 @@ Pod is admitted but cannot be scheduled:
 
 Topology labels are missing or unstable:
 
-- Return to the corresponding installation guide to troubleshoot topology discovery components:
-  [General SONiC RoCE](../getting-started-sonic-roce.md),
-  [Spectrum-X fabric](../getting-started-spectrum-x.md), or
-  [InfiniBand fabric](../getting-started-infiniband.md).
+- Troubleshoot the topology discovery components with the
+  [topology discovery guide](./topology-discovery.md#troubleshooting).
 - Confirm the topology labels that actually exist on Nodes:
 
   ```bash
