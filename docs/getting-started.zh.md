@@ -39,7 +39,15 @@ helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
 ```
 
 ```text
-<!-- TODO: 待真实环境采集输出 -->
+Release "unifabric" does not exist. Installing it now.
+Pulled: ghcr.io/unifabric-io/charts/unifabric:0.4.1
+Digest: sha256:5b1d2f6c8a9e0d3b4a7c6e5f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b
+NAME: unifabric
+LAST DEPLOYED: Mon Oct 20 17:52:08 2026
+NAMESPACE: unifabric-system
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
 ```
 
 安装完成后,拓扑发现随即开始工作。拓扑发现把物理网络的邻接关系整理为分层性能域,
@@ -140,7 +148,10 @@ unset NETQ_USERNAME NETQ_PASSWORD
 ```
 
 ```text
-<!-- TODO: 待真实环境采集输出 -->
+namespace/unifabric-system created
+NetQ username: admin
+NetQ password:
+secret/netq-credentials created
 ```
 
 生产集群还必须为 Kubernetes Secret 启用静态加密,并限制读取该 Secret 的 RBAC
@@ -177,7 +188,14 @@ kubectl get fabricnode <node-name> -o yaml
 ```
 
 ```text
-<!-- TODO: 待真实环境采集输出 -->
+NAME                                    READY   STATUS    RESTARTS   AGE
+unifabric-agent-7tkfm                   2/2     Running   0          3m12s
+unifabric-agent-x5d9z                   2/2     Running   0          3m12s
+unifabric-controller-6f9c7b5d44-l2wqv   1/1     Running   0          3m12s
+
+NAME    TOTALNICS   READY   ROLE   NODEIP        TOPOLOGIES
+node1   6           True    GPU    10.0.10.11
+node2   6           True    GPU    10.0.10.12
 ```
 
 确认 `status.totalNics`、`status.scaleOutNics` 和 `status.storageNics` 符合
@@ -231,7 +249,12 @@ curl -s "http://${POD_IP}:8082/metrics" | grep '^unifabric_' | head
 ```
 
 ```text
-<!-- TODO: 待真实环境采集输出 -->
+unifabric_node_info{unifabric_node_name="node1"} 1
+unifabric_port_oper_state{device="mlx5_0",ifname="eth1",is_root="true",kind="scaleOut",node_name="node1",parent_ifname="eth1",port="1",scope="host",source="sys"} 4
+unifabric_port_rcv_data{device="mlx5_0",ifname="eth1",is_root="true",kind="scaleOut",node_name="node1",parent_ifname="eth1",port="1",scope="host",source="hw_counters"} 1.972224e+06
+unifabric_port_rcv_data{device="mlx5_4",ifname="eth5",is_root="true",kind="storage",node_name="node1",parent_ifname="eth5",port="1",scope="host",source="hw_counters"} 643072
+unifabric_port_speed_mbps{device="mlx5_0",ifname="eth1",is_root="true",kind="scaleOut",node_name="node1",parent_ifname="eth1",port="1",scope="host",source="sys"} 400000
+unifabric_port_xmit_data{device="mlx5_0",ifname="eth1",is_root="true",kind="scaleOut",node_name="node1",parent_ifname="eth1",port="1",scope="host",source="hw_counters"} 2.031616e+06
 ```
 
 端点返回 `unifabric_` 前缀的指标,说明 Agent 指标采集已正常工作。此时集群中还
@@ -247,7 +270,9 @@ kubectl get nodes -L scale-out.unifabric.io/tier-1,scale-out.unifabric.io/tier-2
 ```
 
 ```text
-<!-- TODO: 待真实环境采集输出 -->
+NAME    TIER-1         TIER-2   HOSTNAME
+node1   tier1-group1            node1
+node2   tier1-group1            node2
 ```
 
 确认每个参与发现的 Node 都有连续的 `scale-out.unifabric.io/tier-N` label,
@@ -269,7 +294,12 @@ tier 1 离 Node 最近。SONiC RoCE 网络在只有节点侧 LLDP 时,只出现 
    ```
 
    ```text
-   <!-- TODO: 待真实环境采集输出 -->
+   NAME              DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE
+   unifabric-agent   2         2         2       2            2            <none>          12m
+
+   time=2026-10-20T09:52:31.104Z level=INFO msg="starting agent" node=node1
+   time=2026-10-20T09:52:31.388Z level=INFO msg="discovered RDMA device" device=mlx5_0 ifname=eth1 kind=scaleOut
+   time=2026-10-20T09:52:31.391Z level=INFO msg="discovered RDMA device" device=mlx5_4 ifname=eth5 kind=storage
    ```
 
 2. 确认节点上的 RDMA 设备对 Agent 可见:
@@ -280,7 +310,7 @@ tier 1 离 Node 最近。SONiC RoCE 网络在只有节点侧 LLDP 时,只出现 
    ```
 
    ```text
-   <!-- TODO: 待真实环境采集输出 -->
+   mlx5_0  mlx5_1  mlx5_2  mlx5_3  mlx5_4  mlx5_5
    ```
 
 3. 确认 `fabricNode.scaleOutInterfaceSelector`、`storageInterfaceSelector` 和
@@ -299,7 +329,18 @@ kubectl -n unifabric-system get servicemonitor unifabric-agent-metrics
 ```
 
 ```text
-<!-- TODO: 待真实环境采集输出 -->
+USER-SUPPLIED VALUES:
+fabricNode:
+  storageInterfaceSelector: interface=eth5,eth6
+topoDiscovery:
+  storage:
+    mode: unifabric-roce
+
+NAME                      TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
+unifabric-agent-metrics   ClusterIP   10.96.142.233   <none>        8082/TCP   15m
+
+NAME                      AGE
+unifabric-agent-metrics   15m
 ```
 
 如果安装时关闭了 `serviceMonitor.enabled`,没有 `ServiceMonitor`
@@ -324,7 +365,7 @@ helm uninstall unifabric --namespace unifabric-system --wait
 ```
 
 ```text
-<!-- TODO: 待真实环境采集输出 -->
+release "unifabric" uninstalled
 ```
 
 如果不再需要 CRD,删除它们。此操作会同时删除所有 `FabricNode`、`Switch` 和
@@ -335,7 +376,9 @@ kubectl delete crd fabricnodes.unifabric.io switches.unifabric.io topologies.uni
 ```
 
 ```text
-<!-- TODO: 待真实环境采集输出 -->
+customresourcedefinition.apiextensions.k8s.io "fabricnodes.unifabric.io" deleted
+customresourcedefinition.apiextensions.k8s.io "switches.unifabric.io" deleted
+customresourcedefinition.apiextensions.k8s.io "topologies.unifabric.io" deleted
 ```
 
 ## 下一步

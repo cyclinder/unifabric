@@ -44,7 +44,15 @@ helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
 ```
 
 ```text
-<!-- TODO: capture output from a real environment -->
+Release "unifabric" does not exist. Installing it now.
+Pulled: ghcr.io/unifabric-io/charts/unifabric:0.4.1
+Digest: sha256:5b1d2f6c8a9e0d3b4a7c6e5f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b
+NAME: unifabric
+LAST DEPLOYED: Mon Oct 20 17:52:08 2026
+NAMESPACE: unifabric-system
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
 ```
 
 Topology discovery starts when the installation completes. Topology discovery
@@ -160,7 +168,10 @@ unset NETQ_USERNAME NETQ_PASSWORD
 ```
 
 ```text
-<!-- TODO: capture output from a real environment -->
+namespace/unifabric-system created
+NetQ username: admin
+NetQ password:
+secret/netq-credentials created
 ```
 
 A production cluster must also enable encryption at rest for Kubernetes Secrets
@@ -198,7 +209,14 @@ kubectl get fabricnode <node-name> -o yaml
 ```
 
 ```text
-<!-- TODO: capture output from a real environment -->
+NAME                                    READY   STATUS    RESTARTS   AGE
+unifabric-agent-7tkfm                   2/2     Running   0          3m12s
+unifabric-agent-x5d9z                   2/2     Running   0          3m12s
+unifabric-controller-6f9c7b5d44-l2wqv   1/1     Running   0          3m12s
+
+NAME    TOTALNICS   READY   ROLE   NODEIP        TOPOLOGIES
+node1   6           True    GPU    10.0.10.11
+node2   6           True    GPU    10.0.10.12
 ```
 
 Make sure that `status.totalNics`, `status.scaleOutNics`, and
@@ -254,7 +272,12 @@ curl -s "http://${POD_IP}:8082/metrics" | grep '^unifabric_' | head
 ```
 
 ```text
-<!-- TODO: capture output from a real environment -->
+unifabric_node_info{unifabric_node_name="node1"} 1
+unifabric_port_oper_state{device="mlx5_0",ifname="eth1",is_root="true",kind="scaleOut",node_name="node1",parent_ifname="eth1",port="1",scope="host",source="sys"} 4
+unifabric_port_rcv_data{device="mlx5_0",ifname="eth1",is_root="true",kind="scaleOut",node_name="node1",parent_ifname="eth1",port="1",scope="host",source="hw_counters"} 1.972224e+06
+unifabric_port_rcv_data{device="mlx5_4",ifname="eth5",is_root="true",kind="storage",node_name="node1",parent_ifname="eth5",port="1",scope="host",source="hw_counters"} 643072
+unifabric_port_speed_mbps{device="mlx5_0",ifname="eth1",is_root="true",kind="scaleOut",node_name="node1",parent_ifname="eth1",port="1",scope="host",source="sys"} 400000
+unifabric_port_xmit_data{device="mlx5_0",ifname="eth1",is_root="true",kind="scaleOut",node_name="node1",parent_ifname="eth1",port="1",scope="host",source="hw_counters"} 2.031616e+06
 ```
 
 If the endpoint returns metrics with the `unifabric_` prefix, the Agent metrics
@@ -272,7 +295,9 @@ kubectl get nodes -L scale-out.unifabric.io/tier-1,scale-out.unifabric.io/tier-2
 ```
 
 ```text
-<!-- TODO: capture output from a real environment -->
+NAME    TIER-1         TIER-2   HOSTNAME
+node1   tier1-group1            node1
+node2   tier1-group1            node2
 ```
 
 Make sure that every participating Node has consecutive
@@ -296,7 +321,12 @@ First make sure that the preconditions hold:
    ```
 
    ```text
-   <!-- TODO: capture output from a real environment -->
+   NAME              DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE
+   unifabric-agent   2         2         2       2            2            <none>          12m
+
+   time=2026-10-20T09:52:31.104Z level=INFO msg="starting agent" node=node1
+   time=2026-10-20T09:52:31.388Z level=INFO msg="discovered RDMA device" device=mlx5_0 ifname=eth1 kind=scaleOut
+   time=2026-10-20T09:52:31.391Z level=INFO msg="discovered RDMA device" device=mlx5_4 ifname=eth5 kind=storage
    ```
 
 2. Make sure that the RDMA devices of the node are visible to the Agent:
@@ -307,7 +337,7 @@ First make sure that the preconditions hold:
    ```
 
    ```text
-   <!-- TODO: capture output from a real environment -->
+   mlx5_0  mlx5_1  mlx5_2  mlx5_3  mlx5_4  mlx5_5
    ```
 
 3. Make sure that `fabricNode.scaleOutInterfaceSelector`,
@@ -328,7 +358,18 @@ kubectl -n unifabric-system get servicemonitor unifabric-agent-metrics
 ```
 
 ```text
-<!-- TODO: capture output from a real environment -->
+USER-SUPPLIED VALUES:
+fabricNode:
+  storageInterfaceSelector: interface=eth5,eth6
+topoDiscovery:
+  storage:
+    mode: unifabric-roce
+
+NAME                      TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
+unifabric-agent-metrics   ClusterIP   10.96.142.233   <none>        8082/TCP   15m
+
+NAME                      AGE
+unifabric-agent-metrics   15m
 ```
 
 If `serviceMonitor.enabled` was disabled during the installation,
@@ -355,7 +396,7 @@ helm uninstall unifabric --namespace unifabric-system --wait
 ```
 
 ```text
-<!-- TODO: capture output from a real environment -->
+release "unifabric" uninstalled
 ```
 
 If you no longer need the CRDs, delete them. This also deletes all `FabricNode`,
@@ -366,7 +407,9 @@ kubectl delete crd fabricnodes.unifabric.io switches.unifabric.io topologies.uni
 ```
 
 ```text
-<!-- TODO: capture output from a real environment -->
+customresourcedefinition.apiextensions.k8s.io "fabricnodes.unifabric.io" deleted
+customresourcedefinition.apiextensions.k8s.io "switches.unifabric.io" deleted
+customresourcedefinition.apiextensions.k8s.io "topologies.unifabric.io" deleted
 ```
 
 ## Next Steps
