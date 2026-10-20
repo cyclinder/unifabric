@@ -5,7 +5,7 @@ English version: [getting-started.md](./getting-started.md)
 ## 简介与部署目标
 
 本文使用 Helm 安装 Unifabric 基础组件:Controller、Agent 和观测组件。默认安装
-面向 SONiC RoCE 网络;如果集群使用 InfiniBand 或 Spectrum-X,只需修改少量 Helm
+面向 SONiC RoCE 网络;如果集群使用 InfiniBand 或 Spectrum-X,需要修改少量 Helm
 参数。
 
 完成本文后,集群将呈现以下结果:
