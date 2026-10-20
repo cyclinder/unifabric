@@ -54,11 +54,8 @@ NVIDIA Topograph、NetQ 导入拓扑，以统一的 Kubernetes 资源模型对�
 
 ## 快速开始
 
-1. 完成[基础安装](./docs/getting-started.zh.md)。
-2. 按照集群物理网络对应的文档操作：
-   - [通用 SONiC RoCE](./docs/getting-started-sonic-roce.zh.md)
-   - [NVIDIA Spectrum-X](./docs/getting-started-spectrum-x.zh.md)
-   - [InfiniBand](./docs/getting-started-infiniband.zh.md)
+按照[部署指南](./docs/getting-started.zh.md)安装 Unifabric。该文档覆盖默认的
+SONiC RoCE 路径，以及 InfiniBand 和 NVIDIA Spectrum-X 环境。
 
 要了解每种网络使用哪种发现方式，参见[拓扑发现概念](./docs/concepts/topology-discovery.zh.md)。
 
@@ -68,7 +65,7 @@ NVIDIA Topograph、NetQ 导入拓扑，以统一的 Kubernetes 资源模型对�
 | --- | --- |
 | 文档索引 | [docs/README.zh.md](./docs/README.zh.md) |
 | 架构与概念 | [架构总览](./docs/concepts/architecture.zh.md)、[拓扑发现](./docs/concepts/topology-discovery.zh.md) |
-| 快速开始 | [基础安装](./docs/getting-started.zh.md)、[通用 SONiC RoCE](./docs/getting-started-sonic-roce.zh.md)、[NVIDIA Spectrum-X](./docs/getting-started-spectrum-x.zh.md)、[InfiniBand](./docs/getting-started-infiniband.zh.md) |
+| 快速开始 | [部署 Unifabric](./docs/getting-started.zh.md) |
 | 功能使用 | [拓扑可视化](./docs/usage/topology-visualization.zh.md)、[RDMA 指标](./docs/usage/rdma-metrics.zh.md)、[RDMA 流归因](./docs/usage/rdma-flow.zh.md)、[拓扑感知调度](./docs/usage/workload-tas.zh.md)、[Switch Agent 部署](./docs/usage/switch-agent-deployment.zh.md) |
 | API 参考 | [FabricNode、Switch、Topology、RDMAEndpoint](./docs/reference/README.zh.md) |
 | Helm values | [Chart 参考](./chart/README.md) |

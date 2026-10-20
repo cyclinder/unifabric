@@ -70,11 +70,9 @@ and Prometheus consume the result. For the component architecture, see the
 
 ## Quick Start
 
-1. Complete the [basic installation](./docs/getting-started.md).
-2. Follow the guide for your physical network:
-   - [General SONiC RoCE](./docs/getting-started-sonic-roce.md)
-   - [NVIDIA Spectrum-X](./docs/getting-started-spectrum-x.md)
-   - [InfiniBand](./docs/getting-started-infiniband.md)
+Follow the [deployment guide](./docs/getting-started.md) to install Unifabric. It
+covers the default SONiC RoCE path and the InfiniBand and NVIDIA Spectrum-X
+environments.
 
 To understand which discovery mode each network uses, see the
 [topology discovery concept](./docs/concepts/topology-discovery.md).
@@ -85,7 +83,7 @@ To understand which discovery mode each network uses, see the
 | --- | --- |
 | Documentation index | [docs/README.md](./docs/README.md) |
 | Architecture and concepts | [Architecture overview](./docs/concepts/architecture.md), [Topology discovery](./docs/concepts/topology-discovery.md) |
-| Getting started | [Basic installation](./docs/getting-started.md), [General SONiC RoCE](./docs/getting-started-sonic-roce.md), [NVIDIA Spectrum-X](./docs/getting-started-spectrum-x.md), [InfiniBand](./docs/getting-started-infiniband.md) |
+| Getting started | [Deploy Unifabric](./docs/getting-started.md) |
 | Feature usage | [Topology visualization](./docs/usage/topology-visualization.md), [RDMA metrics](./docs/usage/rdma-metrics.md), [RDMA flow attribution](./docs/usage/rdma-flow.md), [Workload TAS](./docs/usage/workload-tas.md), [Switch Agent deployment](./docs/usage/switch-agent-deployment.md) |
 | API reference | [FabricNode, Switch, Topology, and RDMAEndpoint](./docs/reference/README.md) |
 | Helm values | [Chart reference](./chart/README.md) |
