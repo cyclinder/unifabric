@@ -17,14 +17,15 @@ while operators can diagnose RDMA network and workload traffic problems.
 ## Quick Start
 
 Follow [Deploy Unifabric](./getting-started.md) to install the Controller, the
-Agent, and the observability components, and to select the topology-discovery
-method for the physical network:
+Agent, and the observability components. The default installation works on a
+SONiC RoCE fabric and discovers the topology over LLDP. For an InfiniBand or
+Spectrum-X fabric, the guide lists the Helm options to change:
 
 | Scenario | Primary topology | Discovery method |
 | --- | --- | --- |
-| General SONiC RoCE | Scale-out and RoCE storage | Node and switch topology discovery over LLDP |
-| Spectrum-X | Scale-out | NVIDIA Topograph with NetQ |
+| SONiC RoCE (default) | Scale-out and RoCE storage | Node and switch topology discovery over LLDP |
 | InfiniBand | Scale-out and Scale-up | NVIDIA Topograph |
+| Spectrum-X | Scale-out | NVIDIA Topograph with NetQ |
 
 For the SONiC switch onboarding options, the label semantics, and discovery
 troubleshooting, see the [topology discovery guide](./usage/topology-discovery.md).

@@ -15,14 +15,15 @@ Kubernetes 可以查询和消费的数据：
 
 ## 快速开始
 
-按照[部署 Unifabric](./getting-started.zh.md) 安装 Controller、Agent 和观测组件，并按
-集群的物理网络选择拓扑发现方式：
+按照[部署 Unifabric](./getting-started.zh.md) 安装 Controller、Agent 和观测组件。默认
+安装面向 SONiC RoCE 网络，通过 LLDP 发现拓扑；InfiniBand 或 Spectrum-X 网络只需按
+指南修改少量 Helm 参数：
 
 | 场景 | 主要拓扑 | 发现方式 |
 | --- | --- | --- |
-| 通用 SONiC RoCE | Scale-out、RoCE storage | 节点及交换机 LLDP 协议拓扑识别 |
-| Spectrum-X | Scale-out | NVIDIA Topograph + NetQ |
+| SONiC RoCE（默认） | Scale-out、RoCE storage | 节点及交换机 LLDP 协议拓扑识别 |
 | InfiniBand | Scale-out、Scale-up | NVIDIA Topograph |
+| Spectrum-X | Scale-out | NVIDIA Topograph + NetQ |
 
 SONiC 交换机接入方式、label 语义和发现链路排查，参见
 [拓扑发现指南](./usage/topology-discovery.zh.md)。需要调整其他 Chart 参数时，可查看
