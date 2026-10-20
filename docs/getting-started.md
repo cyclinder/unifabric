@@ -61,13 +61,6 @@ cluster uses an InfiniBand or Spectrum-X fabric instead, change the
 topology-discovery options as described in
 [Other Network Environments](#other-network-environments).
 
-If the RoCE network also carries the storage network, add this option to the
-installation command:
-
-```bash
---set topoDiscovery.storage.mode=unifabric-roce
-```
-
 With node-side LLDP alone, discovery produces only tier 1: the leaf switches
 that the nodes connect to. To discover the spine and core tiers above the
 leaves, declare the upper switches or run the switch-agent on the switches after
@@ -93,6 +86,13 @@ NICs remain scale-out by the default rule. The selector also supports wildcards
 and CIDRs, for example `interface=eth*,!eth9` or `cidr=172.17.0.0/16`. The
 [Helm values reference](../chart/README.md) describes the complete selector
 syntax.
+
+If the node has storage NICs as in this example, also add this option so that
+Unifabric discovers the storage topology over LLDP:
+
+```bash
+--set topoDiscovery.storage.mode=unifabric-roce
+```
 
 If the cluster does not have Prometheus Operator or Grafana Operator, add these
 options to the installation command:

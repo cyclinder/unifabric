@@ -52,12 +52,6 @@ SONiC 交换机承载 RoCE 网络的集群。RoCE 是在融合以太网上运行
 协议,确认每台交换机都启用了 LLDP。如果集群使用 InfiniBand 或 Spectrum-X
 网络,按[其他网络环境](#其他网络环境)修改拓扑发现参数。
 
-如果 RoCE 网络同时承载存储网络,在安装命令中追加:
-
-```bash
---set topoDiscovery.storage.mode=unifabric-roce
-```
-
 只依靠节点侧 LLDP 时,发现结果只包含 tier 1(节点直连的 leaf 交换机)。要发现
 leaf 以上的 spine、core 等层级,在安装完成后按
 [拓扑发现指南](./usage/topology-discovery.zh.md)声明上层交换机,或在交换机上
@@ -78,6 +72,13 @@ scale-out 流量,`eth5` 和 `eth6` 承载 storage 流量。标准 GPU 服务器
 Unifabric 会把 `eth5` 和 `eth6` 归类为 storage,其余四张 RDMA 网卡仍按默认规则
 归类为 scale-out。选择器还支持通配符和 CIDR,例如 `interface=eth*,!eth9` 或
 `cidr=172.17.0.0/16`。完整语法参见 [Helm values 参考](../chart/README.md)。
+
+如果像本例一样存在 storage 网卡,再追加以下参数,让 Unifabric 通过 LLDP 发现
+存储网络拓扑:
+
+```bash
+--set topoDiscovery.storage.mode=unifabric-roce
+```
 
 如果集群没有 Prometheus Operator 或 Grafana Operator,在安装命令中追加:
 
