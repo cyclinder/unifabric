@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](./LICENSE)
 [![Release](https://img.shields.io/github/v/release/unifabric-io/unifabric)](https://github.com/unifabric-io/unifabric/releases)
 
-> 面向云原生 AI 集群高速网络的可观测系统
+> 云原生 AI 集群高速网络的可观测系统
 
 ## 简介
 
@@ -45,9 +45,9 @@ label 直接被 Kueue、Volcano 等调度器消费，提升 AI 集群的训练�
   InfiniBand（从 NVIDIA Topograph 导入）
 - 支持裸金属与云化环境
 
-### AI 网络流量观测
+### 高速网络流量观测
 
-AI 网络流量观测功能通过读取网卡计数器、采集交换机指标、挂载 eBPF 探针等方式，
+高速网络流量观测功能通过读取网卡计数器、采集交换机指标、挂载 eBPF 探针等方式，
 采集三张高速网络的流量数据，并统一归因到 Pod、namespace、workload 和主机，把设备视角的流量变成
 业务视角的可观测指标。观测的目的，是让网络问题可以用业务语言回答——任务变慢是否
 由网络引起、是谁的流量影响了谁——为 AI 训练与推理的性能分析和故障定位提供依据。
@@ -75,9 +75,9 @@ AI 网络流量观测功能通过读取网卡计数器、采集交换机指标�
 - **网络拥塞或异常排障时**：通过预置 Grafana 仪表盘快速回答"是谁的流量、
   影响了谁"，确定影响范围
 
-### 网络主动健康检查
+### RDMA 网络健康检查
 
-网络主动健康检查功能持续对三张高速网络的链路和配置做探测巡检，主动发现问题，
+RDMA 网络健康检查功能持续对三张高速网络的链路和配置做巡检，主动发现问题，
 而不是等业务报障后再排查。
 
 具备如下功能：

@@ -58,9 +58,9 @@ Applicability:
   and InfiniBand (imported from NVIDIA Topograph)
 - Supports bare-metal and cloud environments
 
-### AI network traffic observability
+### High-speed network traffic observability
 
-AI network traffic observability collects traffic data for the three high-speed
+High-speed network traffic observability collects traffic data for the three high-speed
 networks by reading NIC counters, collecting switch metrics, and attaching eBPF
 probes, and attributes it to
 Pods, namespaces, workloads, and hosts, turning device-level traffic into
@@ -100,9 +100,9 @@ Use cases:
   it is and which workload it affects quickly with prebuilt Grafana dashboards
   and determine the affected scope
 
-### Active network health checks
+### RDMA network health checks
 
-Active network health checks continuously probe the links and configuration of
+RDMA network health checks continuously monitor the links and configuration of
 the three high-speed networks and surface problems proactively, instead of
 troubleshooting after a workload reports a failure.
 
