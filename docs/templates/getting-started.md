@@ -34,14 +34,16 @@ an empty cluster to "I can see unifabric work" in 30 minutes.
                                       post-install procedures (for example
                                       switch onboarding) live in a usage
                                       document; link to it. -->
-## Verification         <!-- The smallest verifiable example: run
-                             kubectl get fabricnodes and see the topology,
-                             or check the Node labels.
+## Verification         <!-- The smallest verifiable example that proves the
+                             deployment itself works: Pods run and
+                             kubectl get fabricnodes matches the nodes.
+                             Feature results (topology labels, metrics) are
+                             verified in their usage documents.
                              Attach real output or a screenshot. -->
-## Troubleshooting      <!-- Common problems in the deployment stage. -->
-## Uninstall
 ## Next Steps           <!-- Links: usage documents for each feature,
                              reference documents. -->
+## Troubleshooting      <!-- Common problems in the deployment stage. -->
+## Uninstall
 ```
 
 ## Constraints

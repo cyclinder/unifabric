@@ -13,9 +13,10 @@ After you finish this guide, the cluster will show the following results:
 
 - A `FabricNode` resource exists for every node and lists its RDMA NICs by
   purpose: scale-out, storage, or scale-up.
-- Nodes carry `scale-out.unifabric.io/tier-N` topology labels for schedulers.
-- Node RDMA metrics are exposed by the Agent metrics endpoint for Prometheus
-  to collect.
+- The topology-discovery and RDMA-metrics components are ready. Node topology
+  labels and RDMA metrics are feature results; see the
+  [topology discovery guide](./usage/topology-discovery.md) and the
+  [RDMA metrics guide](./usage/rdma-metrics.md).
 
 ## Prerequisites
 
@@ -27,6 +28,11 @@ Make sure that each item below is true before you continue:
       example NVIDIA DOCA-OFED) is installed on the nodes.
 - [ ] `kubectl` and Helm (v3.13 or later) are installed on the host that you
       use for the installation.
+- [ ] Prometheus Operator and Grafana Operator (v5 or later, which provides
+      the `grafana.integreatly.org/v1beta1` API) are installed in the cluster
+      to collect RDMA metrics and load the Grafana dashboards. Topology
+      visualization also requires Grafana 12.1 or later; see the
+      [topology visualization guide](./usage/topology-visualization.md).
 
 ## Installation
 
@@ -41,15 +47,6 @@ helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
   --namespace unifabric-system \
   --create-namespace \
   --wait
-Release "unifabric" does not exist. Installing it now.
-Pulled: ghcr.io/unifabric-io/charts/unifabric:0.4.1
-Digest: sha256:5b1d2f6c8a9e0d3b4a7c6e5f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b
-NAME: unifabric
-LAST DEPLOYED: Mon Oct 20 17:52:08 2026
-NAMESPACE: unifabric-system
-STATUS: deployed
-REVISION: 1
-TEST SUITE: None
 ```
 
 1. The chart sets `topoDiscovery.scaleOut.mode` to `unifabric-roce` by default.
@@ -68,17 +65,23 @@ the installation. The [topology discovery guide](./usage/topology-discovery.md)
 describes both options.
 
 2. By default, Unifabric classifies all RDMA NICs on a node as scale-out. If a node
-has RDMA NICs for different purposes, add the matching selector to the
-installation command with `--set`.
+has RDMA NICs for different purposes, add the matching selector with
+`helm upgrade --install` after the base installation.
 
 > For example, a node has six RDMA NICs named `eth1` through `eth6`. The NICs
 `eth1` through `eth4` carry scale-out traffic, and `eth5` and `eth6` carry
 storage traffic. Reference architectures of standard GPU servers, such as
 DGX H100/B200 and GB200/GB300 NVL72, commonly provide two dedicated storage
-NICs. Add this option to the installation command:
+NICs. Run this command, which also enables topology discovery for the storage
+network:
 
 ```bash
---set fabricNode.storageInterfaceSelector="interface=eth5\,eth6"
+helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
+  --namespace unifabric-system \
+  --reuse-values \
+  --set fabricNode.storageInterfaceSelector="interface=eth5\,eth6" \
+  --set topoDiscovery.storage.mode=unifabric-roce \
+  --wait
 ```
 
 > Unifabric then classifies `eth5` and `eth6` as storage. The other four RDMA
@@ -87,28 +90,17 @@ and CIDRs, for example `interface=eth*,!eth9` or `cidr=172.17.0.0/16`. The
 [Helm values reference](../chart/README.md) describes the complete selector
 syntax.
 
-> If the node has storage NICs as in this example, also add this option so that
-Unifabric discovers the storage topology over LLDP:
+3. In mainland China, run this command to accelerate image pulls:
 
 ```bash
---set topoDiscovery.storage.mode=unifabric-roce
-```
-
-If the cluster does not have Prometheus Operator or Grafana Operator, add these
-options to the installation command:
-
-```bash
---set serviceMonitor.enabled=false \
---set grafanaDashboard.enabled=false
-```
-
-3. In mainland China, add these options to accelerate image pulls:
-
-```bash
---set global.registry=m.daocloud.io \
---set controller.image.repository=ghcr.io/unifabric-io/unifabric-controller \
---set agent.image.repository=ghcr.io/unifabric-io/unifabric-agent \
---set nvidiaTopograph.image.repository=ghcr.io/nvidia/topograph
+helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
+  --namespace unifabric-system \
+  --reuse-values \
+  --set global.registry=m.daocloud.io \
+  --set controller.image.repository=ghcr.io/unifabric-io/unifabric-controller \
+  --set agent.image.repository=ghcr.io/unifabric-io/unifabric-agent \
+  --set nvidiaTopograph.image.repository=ghcr.io/nvidia/topograph \
+  --wait
 ```
 
 ## Other Network Environments
@@ -123,12 +115,16 @@ Use this section when the cluster uses an NVIDIA InfiniBand fabric, for example
 Mellanox NICs in IB mode connected to IB switches. Make sure that RDMA devices
 in IB mode exist on the nodes.
 
-Add these options to the installation command to select NVIDIA Topograph as the
-topology writer for the scale-up and scale-out networks:
+After the base installation, run this command to select NVIDIA Topograph as
+the topology writer for the scale-up and scale-out networks:
 
 ```bash
---set topoDiscovery.scaleUp.mode=nv-topograph \
---set topoDiscovery.scaleOut.mode=nv-topograph
+helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
+  --namespace unifabric-system \
+  --reuse-values \
+  --set topoDiscovery.scaleUp.mode=nv-topograph \
+  --set topoDiscovery.scaleOut.mode=nv-topograph \
+  --wait
 ```
 
 ### Spectrum-X Fabric
@@ -169,13 +165,17 @@ secret/netq-credentials created
 A production cluster must also enable encryption at rest for Kubernetes Secrets
 and restrict the RBAC permissions that read this Secret.
 
-Then add these options to the installation command:
+Then run:
 
 ```bash
---set topoDiscovery.scaleOut.mode=nv-topograph \
---set nvidiaTopograph.provider.name=netq \
---set-string nvidiaTopograph.provider.params.apiUrl=https://netq.example.com \
---set-string nvidiaTopograph.credentialsSecretName=netq-credentials
+helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
+  --namespace unifabric-system \
+  --reuse-values \
+  --set topoDiscovery.scaleOut.mode=nv-topograph \
+  --set nvidiaTopograph.provider.name=netq \
+  --set-string nvidiaTopograph.provider.params.apiUrl=https://netq.example.com \
+  --set-string nvidiaTopograph.credentialsSecretName=netq-credentials \
+  --wait
 ```
 
 Option description:
@@ -189,7 +189,7 @@ Option description:
 
 ## Verification
 
-### 1. Inspect FabricNode NIC Information
+### Inspect FabricNode NIC Information
 
 Make sure that the Controller and Agent Pods are running and that a `FabricNode`
 exists for every node:
@@ -250,54 +250,22 @@ status:
       state: up
 ```
 
-### 2. Check the Node RDMA Metrics Endpoint
+Running Pods and a `FabricNode` status that matches the node confirm that the
+deployment is complete.
 
-Query the Agent metrics endpoint directly to make sure that the metrics
-collector produces `unifabric_` metrics:
+## Next Steps
 
-```bash
-POD_IP=$(kubectl -n unifabric-system get pod \
-  -l app.kubernetes.io/component=unifabric-agent \
-  -o jsonpath='{.items[0].status.podIP}')
+After the deployment, continue with the feature guides:
 
-curl -s "http://${POD_IP}:8082/metrics" | grep '^unifabric_' | head
-```
-
-```text
-unifabric_node_info{unifabric_node_name="node1"} 1
-unifabric_port_oper_state{device="mlx5_0",ifname="eth1",is_root="true",kind="scaleOut",node_name="node1",parent_ifname="eth1",port="1",scope="host",source="sys"} 4
-unifabric_port_rcv_data{device="mlx5_0",ifname="eth1",is_root="true",kind="scaleOut",node_name="node1",parent_ifname="eth1",port="1",scope="host",source="hw_counters"} 1.972224e+06
-unifabric_port_rcv_data{device="mlx5_4",ifname="eth5",is_root="true",kind="storage",node_name="node1",parent_ifname="eth5",port="1",scope="host",source="hw_counters"} 643072
-unifabric_port_speed_mbps{device="mlx5_0",ifname="eth1",is_root="true",kind="scaleOut",node_name="node1",parent_ifname="eth1",port="1",scope="host",source="sys"} 400000
-unifabric_port_xmit_data{device="mlx5_0",ifname="eth1",is_root="true",kind="scaleOut",node_name="node1",parent_ifname="eth1",port="1",scope="host",source="hw_counters"} 2.031616e+06
-```
-
-If the endpoint returns metrics with the `unifabric_` prefix, the Agent metrics
-collection works. The cluster carries no workload traffic at this point, so do
-not interpret the metric values. The [RDMA metrics guide](./usage/rdma-metrics.md)
-describes the metrics and the Grafana dashboards.
-
-### 3. Inspect Node Topology Labels
-
-After topology discovery completes, the discovery result is written to Node
-labels:
-
-```bash
-kubectl get nodes -L scale-out.unifabric.io/tier-1,scale-out.unifabric.io/tier-2,kubernetes.io/hostname
-```
-
-```text
-NAME    TIER-1         TIER-2   HOSTNAME
-node1   tier1-group1            node1
-node2   tier1-group1            node2
-```
-
-Make sure that every participating Node has consecutive
-`scale-out.unifabric.io/tier-N` labels, where tier 1 is closest to the Node. On
-a SONiC RoCE fabric with node-side LLDP alone, tier 1 only is the expected
-result. The [topology discovery guide](./usage/topology-discovery.md) describes
-the label semantics, the `Switch` and `Topology` resources, and the discovery of
-the switch tiers above the leaves.
+- Go deeper into topology discovery: declare upper SONiC switches, deploy the
+  switch-agent, and understand the label semantics and the `Topology` resource
+  with the [topology discovery guide](./usage/topology-discovery.md).
+- Use the labels in a scheduler with the
+  [Kueue TAS workload example](./usage/workload-tas.md).
+- Render the topology with the
+  [topology visualization guide](./usage/topology-visualization.md).
+- Observe RDMA metrics with the [RDMA metrics guide](./usage/rdma-metrics.md).
+- Tune the installation with the [Helm values reference](../chart/README.md).
 
 ## Troubleshooting
 
@@ -338,47 +306,6 @@ First make sure that the preconditions hold:
 4. Make sure that no NIC is misclassified. NICs that the storage or scale-up
    selector matches do not appear in `status.scaleOutNics`.
 
-### The Agent Metrics Endpoint Has No Data
-
-Make sure that Agent metrics are enabled, then inspect the Service and the
-ServiceMonitor:
-
-```bash
-helm get values unifabric -n unifabric-system
-kubectl -n unifabric-system get service unifabric-agent-metrics
-kubectl -n unifabric-system get servicemonitor unifabric-agent-metrics
-```
-
-```text
-USER-SUPPLIED VALUES:
-fabricNode:
-  storageInterfaceSelector: interface=eth5,eth6
-topoDiscovery:
-  storage:
-    mode: unifabric-roce
-
-NAME                      TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
-unifabric-agent-metrics   ClusterIP   10.96.142.233   <none>        8082/TCP   15m
-
-NAME                      AGE
-unifabric-agent-metrics   15m
-```
-
-If `serviceMonitor.enabled` was disabled during the installation,
-the absence of a `ServiceMonitor` is expected. Then repeat the endpoint check
-in [Verification](#2-check-the-node-rdma-metrics-endpoint):
-
-- If the endpoint returns no metrics, make sure that `nodeMetrics.enabled=true`.
-  Then read the Agent logs and the RDMA devices under `/sys/class/infiniband`.
-- If the endpoint returns metrics but Prometheus or Grafana has no data, use the
-  [RDMA metrics guide](./usage/rdma-metrics.md) to troubleshoot the
-  observability pipeline.
-
-### Nodes Have No Topology Labels
-
-The discovery pipeline depends on the physical network. Follow the
-[troubleshooting section of the topology discovery guide](./usage/topology-discovery.md#troubleshooting).
-
 ## Uninstall
 
 Remove the Helm release:
@@ -403,15 +330,3 @@ customresourcedefinition.apiextensions.k8s.io "fabricnodes.unifabric.io" deleted
 customresourcedefinition.apiextensions.k8s.io "switches.unifabric.io" deleted
 customresourcedefinition.apiextensions.k8s.io "topologies.unifabric.io" deleted
 ```
-
-## Next Steps
-
-- Go deeper into topology discovery: declare upper SONiC switches, deploy the
-  switch-agent, and understand the label semantics and the `Topology` resource
-  with the [topology discovery guide](./usage/topology-discovery.md).
-- Use the labels in a scheduler with the
-  [Kueue TAS workload example](./usage/workload-tas.md).
-- Render the topology with the
-  [topology visualization guide](./usage/topology-visualization.md).
-- Observe RDMA metrics with the [RDMA metrics guide](./usage/rdma-metrics.md).
-- Tune the installation with the [Helm values reference](../chart/README.md).

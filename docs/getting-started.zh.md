@@ -12,8 +12,9 @@ English version: [getting-started.md](./getting-started.md)
 
 - 每个节点都有对应的 `FabricNode` 资源,按用途列出其 RDMA 网卡:scale-out、
   storage 或 scale-up。
-- Node 带有供调度器使用的 `scale-out.unifabric.io/tier-N` 拓扑 label。
-- Agent 对外暴露节点 RDMA 指标端点,可供 Prometheus 采集。
+- 拓扑发现和 RDMA 指标采集组件已就绪。Node 拓扑 label 和 RDMA 指标属于功能
+  结果,分别参见[拓扑发现指南](./usage/topology-discovery.zh.md)和
+  [RDMA 指标指南](./usage/rdma-metrics.zh.md)。
 
 ## 前提条件
 
@@ -23,12 +24,18 @@ English version: [getting-started.md](./getting-started.md)
 - [ ] 集群节点配备 RDMA 网卡,并接入 SONiC RoCE、InfiniBand 或 NVIDIA
       Spectrum-X 其中一种网络,节点上已安装 RDMA 驱动(如 NVIDIA DOCA-OFED)。
 - [ ] 执行安装的主机上已安装 `kubectl` 和 Helm(v3.13 及以上)。
+- [ ] 集群已安装 Prometheus Operator 和 Grafana Operator(v5 及以上,提供
+      `grafana.integreatly.org/v1beta1` API),用于采集 RDMA 指标和加载
+      Grafana 看板。拓扑可视化还要求 Grafana 12.1 及以上,参见
+      [拓扑可视化指南](./usage/topology-visualization.zh.md)。
 
 ## 安装
 
 下面的命令安装最新版本的 Unifabric,Helm 会自动解析最新的 chart 版本。要安装
 特定版本,追加 `--version <x.y.z>`,可用版本见
-[releases](https://github.com/unifabric-io/unifabric/releases) 页面。在可以用
+[releases](https://github.com/unifabric-io/unifabric/releases) 页面。
+
+在可以用
 `kubectl` 和 Helm 访问集群的主机上执行:
 
 ```bash
@@ -36,15 +43,6 @@ helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
   --namespace unifabric-system \
   --create-namespace \
   --wait
-Release "unifabric" does not exist. Installing it now.
-Pulled: ghcr.io/unifabric-io/charts/unifabric:0.4.1
-Digest: sha256:5b1d2f6c8a9e0d3b4a7c6e5f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b
-NAME: unifabric
-LAST DEPLOYED: Mon Oct 20 17:52:08 2026
-NAMESPACE: unifabric-system
-STATUS: deployed
-REVISION: 1
-TEST SUITE: None
 ```
 
 1. Chart 默认把 `topoDiscovery.scaleOut.mode` 设置为 `unifabric-roce`,适用于
@@ -59,42 +57,38 @@ leaf 以上的 spine、core 等层级,在安装完成后按
 运行 switch-agent 自动发现。
 
 2. 默认情况下,Unifabric 把节点上的所有 RDMA 网卡归类为 scale-out。如果节点上存在
-不同用途的 RDMA 网卡,在安装命令中用 `--set` 追加对应的 selector。
+不同用途的 RDMA 网卡,完成基础安装后,用 `helm upgrade --install` 追加对应的
+selector。
 
 > 例如,一个节点有 `eth1` 到 `eth6` 六张 RDMA 网卡,其中 `eth1` 到 `eth4` 承载
 scale-out 流量,`eth5` 和 `eth6` 承载 storage 流量。标准 GPU 服务器
 (如 DGX H100/B200、GB200/GB300 NVL72)的参考架构通常配备 2 张专用存储网卡。
-在安装命令中追加:
+执行以下命令,同时打开 storage 网络的拓扑发现:
 
 ```bash
---set fabricNode.storageInterfaceSelector="interface=eth5\,eth6"
+helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
+  --namespace unifabric-system \
+  --reuse-values \
+  --set fabricNode.storageInterfaceSelector="interface=eth5\,eth6" \
+  --set topoDiscovery.storage.mode=unifabric-roce \
+  --wait
 ```
 
 > Unifabric 会把 `eth5` 和 `eth6` 归类为 storage,其余四张 RDMA 网卡仍按默认规则
 归类为 scale-out。选择器还支持通配符和 CIDR,例如 `interface=eth*,!eth9` 或
 `cidr=172.17.0.0/16`。完整语法参见 [Helm values 参考](../chart/README.md)。
 
-> 如果像本例一样存在 storage 网卡,再追加以下参数,让 Unifabric 通过 LLDP 发现
-存储网络拓扑:
+3. 如果位于中国大陆,执行以下命令加速镜像拉取:
 
 ```bash
---set topoDiscovery.storage.mode=unifabric-roce
-```
-
-如果集群没有 Prometheus Operator 或 Grafana Operator,在安装命令中追加:
-
-```bash
---set serviceMonitor.enabled=false \
---set grafanaDashboard.enabled=false
-```
-
-3. 如果位于中国大陆,追加以下参数加速镜像拉取:
-
-```bash
---set global.registry=m.daocloud.io \
---set controller.image.repository=ghcr.io/unifabric-io/unifabric-controller \
---set agent.image.repository=ghcr.io/unifabric-io/unifabric-agent \
---set nvidiaTopograph.image.repository=ghcr.io/nvidia/topograph
+helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
+  --namespace unifabric-system \
+  --reuse-values \
+  --set global.registry=m.daocloud.io \
+  --set controller.image.repository=ghcr.io/unifabric-io/unifabric-controller \
+  --set agent.image.repository=ghcr.io/unifabric-io/unifabric-agent \
+  --set nvidiaTopograph.image.repository=ghcr.io/nvidia/topograph \
+  --wait
 ```
 
 ## 其他网络环境
@@ -107,12 +101,16 @@ scale-out 流量,`eth5` 和 `eth6` 承载 storage 流量。标准 GPU 服务器
 适用于使用 NVIDIA InfiniBand 组网的集群,例如 Mellanox 网卡运行在 IB 模式并
 连接 IB 交换机。确认节点上存在 IB 模式的 RDMA 设备。
 
-在安装命令中追加,为 scale-up 和 scale-out 网络选择 NVIDIA Topograph 作为
-拓扑写入器:
+完成基础安装后,执行以下命令,为 scale-up 和 scale-out 网络选择 NVIDIA
+Topograph 作为拓扑写入器:
 
 ```bash
---set topoDiscovery.scaleUp.mode=nv-topograph \
---set topoDiscovery.scaleOut.mode=nv-topograph
+helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
+  --namespace unifabric-system \
+  --reuse-values \
+  --set topoDiscovery.scaleUp.mode=nv-topograph \
+  --set topoDiscovery.scaleOut.mode=nv-topograph \
+  --wait
 ```
 
 ### Spectrum-X 网络
@@ -150,13 +148,17 @@ secret/netq-credentials created
 生产集群还必须为 Kubernetes Secret 启用静态加密,并限制读取该 Secret 的 RBAC
 权限。
 
-然后在安装命令中追加:
+然后执行:
 
 ```bash
---set topoDiscovery.scaleOut.mode=nv-topograph \
---set nvidiaTopograph.provider.name=netq \
---set-string nvidiaTopograph.provider.params.apiUrl=https://netq.example.com \
---set-string nvidiaTopograph.credentialsSecretName=netq-credentials
+helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
+  --namespace unifabric-system \
+  --reuse-values \
+  --set topoDiscovery.scaleOut.mode=nv-topograph \
+  --set nvidiaTopograph.provider.name=netq \
+  --set-string nvidiaTopograph.provider.params.apiUrl=https://netq.example.com \
+  --set-string nvidiaTopograph.credentialsSecretName=netq-credentials \
+  --wait
 ```
 
 参数说明:
@@ -170,7 +172,7 @@ secret/netq-credentials created
 
 ## 验证
 
-### 1. 检查 FabricNode 网卡信息
+### 检查 FabricNode 网卡信息
 
 确认 Controller 和 Agent Pod 正常运行,并且每个节点都存在对应的 `FabricNode`:
 
@@ -229,49 +231,18 @@ status:
       state: up
 ```
 
-### 2. 检查节点 RDMA 指标端点
+Pod 正常运行且 `FabricNode` 状态符合预期,说明部署已经完成。
 
-直接访问 Agent metrics 端点,确认指标采集器已经产生 `unifabric_` 指标:
+## 下一步
 
-```bash
-POD_IP=$(kubectl -n unifabric-system get pod \
-  -l app.kubernetes.io/component=unifabric-agent \
-  -o jsonpath='{.items[0].status.podIP}')
+部署完成后,按功能使用文档继续:
 
-curl -s "http://${POD_IP}:8082/metrics" | grep '^unifabric_' | head
-```
-
-```text
-unifabric_node_info{unifabric_node_name="node1"} 1
-unifabric_port_oper_state{device="mlx5_0",ifname="eth1",is_root="true",kind="scaleOut",node_name="node1",parent_ifname="eth1",port="1",scope="host",source="sys"} 4
-unifabric_port_rcv_data{device="mlx5_0",ifname="eth1",is_root="true",kind="scaleOut",node_name="node1",parent_ifname="eth1",port="1",scope="host",source="hw_counters"} 1.972224e+06
-unifabric_port_rcv_data{device="mlx5_4",ifname="eth5",is_root="true",kind="storage",node_name="node1",parent_ifname="eth5",port="1",scope="host",source="hw_counters"} 643072
-unifabric_port_speed_mbps{device="mlx5_0",ifname="eth1",is_root="true",kind="scaleOut",node_name="node1",parent_ifname="eth1",port="1",scope="host",source="sys"} 400000
-unifabric_port_xmit_data{device="mlx5_0",ifname="eth1",is_root="true",kind="scaleOut",node_name="node1",parent_ifname="eth1",port="1",scope="host",source="hw_counters"} 2.031616e+06
-```
-
-端点返回 `unifabric_` 前缀的指标,说明 Agent 指标采集已正常工作。此时集群中还
-没有业务流量,不需要解读具体指标值。指标说明和 Grafana 看板的使用参见
-[RDMA 指标指南](./usage/rdma-metrics.zh.md)。
-
-### 3. 检查 Node 拓扑 label
-
-拓扑发现完成后,发现结果会写入 Node label:
-
-```bash
-kubectl get nodes -L scale-out.unifabric.io/tier-1,scale-out.unifabric.io/tier-2,kubernetes.io/hostname
-```
-
-```text
-NAME    TIER-1         TIER-2   HOSTNAME
-node1   tier1-group1            node1
-node2   tier1-group1            node2
-```
-
-确认每个参与发现的 Node 都有连续的 `scale-out.unifabric.io/tier-N` label,
-tier 1 离 Node 最近。SONiC RoCE 网络在只有节点侧 LLDP 时,只出现 tier 1 属于
-预期结果。label 语义、`Switch` 和 `Topology` 资源,以及交换机间层级的发现,
-参见[拓扑发现指南](./usage/topology-discovery.zh.md)。
+- 深入拓扑发现:声明 SONiC 上层交换机、部署 switch-agent、理解 label 语义与
+  `Topology` 资源,参见[拓扑发现指南](./usage/topology-discovery.zh.md)。
+- 在调度器中使用这些 label:参见 [Kueue TAS 工作负载示例](./usage/workload-tas.zh.md)。
+- 渲染拓扑:参见[拓扑可视化指南](./usage/topology-visualization.zh.md)。
+- 观测 RDMA 指标:参见 [RDMA 指标指南](./usage/rdma-metrics.zh.md)。
+- 调整安装配置:参见 [Helm values 参考](../chart/README.md)。
 
 ## 故障排查
 
@@ -311,44 +282,6 @@ tier 1 离 Node 最近。SONiC RoCE 网络在只有节点侧 LLDP 时,只出现 
 4. 确认网卡没有被错误归类。被 storage 或 scale-up selector 匹配的网卡不会出现在
    `status.scaleOutNics` 中。
 
-### Agent 指标端点没有数据
-
-确认 Agent metrics 已启用,然后检查 Service 和 ServiceMonitor:
-
-```bash
-helm get values unifabric -n unifabric-system
-kubectl -n unifabric-system get service unifabric-agent-metrics
-kubectl -n unifabric-system get servicemonitor unifabric-agent-metrics
-```
-
-```text
-USER-SUPPLIED VALUES:
-fabricNode:
-  storageInterfaceSelector: interface=eth5,eth6
-topoDiscovery:
-  storage:
-    mode: unifabric-roce
-
-NAME                      TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
-unifabric-agent-metrics   ClusterIP   10.96.142.233   <none>        8082/TCP   15m
-
-NAME                      AGE
-unifabric-agent-metrics   15m
-```
-
-如果安装时关闭了 `serviceMonitor.enabled`,没有 `ServiceMonitor`
-属于正常情况。然后重新执行[验证](#2-检查节点-rdma-指标端点)中的端点检查:
-
-- 如果端点没有返回指标,确认 `nodeMetrics.enabled=true`,然后查看 Agent 日志和
-  `/sys/class/infiniband` 下的 RDMA 设备。
-- 如果端点有指标,但 Prometheus 或 Grafana 侧没有数据,参见
-  [RDMA 指标指南](./usage/rdma-metrics.zh.md)排查观测链路。
-
-### Node 没有拓扑 label
-
-拓扑发现链路与具体网络环境相关,按
-[拓扑发现指南的故障排查](./usage/topology-discovery.zh.md#故障排查)逐项检查。
-
 ## 卸载
 
 删除 Helm release:
@@ -373,12 +306,3 @@ customresourcedefinition.apiextensions.k8s.io "fabricnodes.unifabric.io" deleted
 customresourcedefinition.apiextensions.k8s.io "switches.unifabric.io" deleted
 customresourcedefinition.apiextensions.k8s.io "topologies.unifabric.io" deleted
 ```
-
-## 下一步
-
-- 深入拓扑发现:声明 SONiC 上层交换机、部署 switch-agent、理解 label 语义与
-  `Topology` 资源,参见[拓扑发现指南](./usage/topology-discovery.zh.md)。
-- 在调度器中使用这些 label:参见 [Kueue TAS 工作负载示例](./usage/workload-tas.zh.md)。
-- 渲染拓扑:参见[拓扑可视化指南](./usage/topology-visualization.zh.md)。
-- 观测 RDMA 指标:参见 [RDMA 指标指南](./usage/rdma-metrics.zh.md)。
-- 调整安装配置:参见 [Helm values 参考](../chart/README.md)。
