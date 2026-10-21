@@ -22,9 +22,17 @@ Agent collection depends on local Linux sysfs, containerd runtime state, and
 
 ## Installation Entry Points
 
-Before using RDMA metrics, complete the Unifabric installation in
-[Deploy Unifabric](../getting-started.md) and enable `nodeMetrics` and
-dashboards during the installation.
+Before using RDMA metrics, complete the Unifabric installation for your fabric
+scenario and enable `nodeMetrics` and dashboards in the installation guide. See
+See Quick Start in the [documentation index](../README.md) for installation steps.
+
+Scenario entry points:
+
+| Scenario | Installation guide |
+| --- | --- |
+| General SONiC RoCE | [General SONiC RoCE](../getting-started-sonic-roce.md) |
+| Spectrum-X fabric | [Spectrum-X fabric](../getting-started-spectrum-x.md) |
+| InfiniBand fabric | [InfiniBand fabric](../getting-started-infiniband.md) |
 
 Prometheus Operator must be installed to use the chart-rendered
 `ServiceMonitor`. Grafana sidecar or Grafana Operator must be installed to
