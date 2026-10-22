@@ -16,19 +16,20 @@ while operators can diagnose RDMA network and workload traffic problems.
 
 ## Quick Start
 
-1. Follow the [basic installation](./getting-started.md) to deploy the Controller, Agent, and
-   observability components shared by every scenario.
-2. Select the topology-discovery scenario for the physical network:
+Follow [Deploy Unifabric](./getting-started.md) to install the Controller, the
+Agent, and the observability components. The default installation works on a
+SONiC RoCE fabric and discovers the topology over LLDP. For an InfiniBand or
+Spectrum-X fabric, the guide lists the Helm options to change:
 
-| Scenario | Primary topology | Discovery method | Guide |
-| --- | --- | --- | --- |
-| General SONiC RoCE | Scale-out and RoCE storage | Node and switch topology discovery over LLDP | [General SONiC RoCE](./getting-started-sonic-roce.md) |
-| Spectrum-X | Scale-out | NVIDIA Topograph with NetQ | [Spectrum-X fabric](./getting-started-spectrum-x.md) |
-| InfiniBand | Scale-out and Scale-up | NVIDIA Topograph | [InfiniBand fabric](./getting-started-infiniband.md) |
+| Scenario | Primary topology | Discovery method |
+| --- | --- | --- |
+| SONiC RoCE (default) | Scale-out and RoCE storage | Node and switch topology discovery over LLDP |
+| InfiniBand | Scale-out and Scale-up | NVIDIA Topograph |
+| Spectrum-X | Scale-out | NVIDIA Topograph with NetQ |
 
-Scenario guides contain only the Helm values and onboarding steps required by that network. The
-basic installation guide owns shared version, image, and monitoring configuration. For other Chart
-parameters, see the defaults and descriptions in the
+For the SONiC switch onboarding options, the label semantics, and discovery
+troubleshooting, see the [topology discovery guide](./usage/topology-discovery.md).
+For other Chart parameters, see the defaults and descriptions in the
 [Helm values reference](../chart/README.md).
 
 ## Core Features
@@ -39,13 +40,13 @@ Topology discovery converts physical adjacency into hierarchical performance dom
 them to Kubernetes Node labels. Unifabric models three logical topologies:
 
 - **Scale-out network:** Node-to-node communication through leaf, spine, and core tiers. See the
-  [General SONiC RoCE](./getting-started-sonic-roce.md),
-  [Spectrum-X](./getting-started-spectrum-x.md), or
-  [InfiniBand](./getting-started-infiniband.md) guides for scenario-specific configuration.
-- **Scale-up network:** High-bandwidth GPU interconnect domains such as NVLink and NVSwitch. See
-  the [InfiniBand scenario](./getting-started-infiniband.md) for configuration.
+  [topology discovery guide](./usage/topology-discovery.md) for configuration and label semantics.
+- **Scale-up network:** High-bandwidth GPU interconnect domains such as NVLink and NVSwitch.
+  Currently, only the InfiniBand scenario writes scale-up labels. See the
+  [topology discovery guide](./usage/topology-discovery.md) for configuration.
 - **Storage network:** A dedicated RDMA network between compute Nodes and storage services.
-  Currently, only [General SONiC RoCE](./getting-started-sonic-roce.md) is supported.
+  Currently, only the SONiC RoCE discovery method supports it. See the
+  [topology discovery guide](./usage/topology-discovery.md) for configuration.
 
 Discovery results are exposed to schedulers as Node labels and aggregated into read-only
 `Topology` CRs. Use the

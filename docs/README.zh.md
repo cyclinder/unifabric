@@ -15,17 +15,18 @@ Kubernetes 可以查询和消费的数据：
 
 ## 快速开始
 
-1. 按照[基础安装](./getting-started.zh.md)部署所有场景共用的 Controller、Agent 和观测组件。
-2. 根据集群的物理网络选择拓扑发现场景：
+按照[部署 Unifabric](./getting-started.zh.md) 安装 Controller、Agent 和观测组件。默认
+安装面向 SONiC RoCE 网络，通过 LLDP 发现拓扑；InfiniBand 或 Spectrum-X 网络只需按
+指南修改少量 Helm 参数：
 
-| 场景 | 主要拓扑 | 发现方式 | 配置文档 |
-| --- | --- | --- | --- |
-| 通用 SONiC RoCE | Scale-out、RoCE storage | 节点及交换机 LLDP 协议拓扑识别 | [通用 SONiC RoCE](./getting-started-sonic-roce.zh.md) |
-| Spectrum-X | Scale-out | NVIDIA Topograph + NetQ | [Spectrum-X fabric](./getting-started-spectrum-x.zh.md) |
-| InfiniBand | Scale-out、Scale-up | NVIDIA Topograph | [InfiniBand fabric](./getting-started-infiniband.zh.md) |
+| 场景 | 主要拓扑 | 发现方式 |
+| --- | --- | --- |
+| SONiC RoCE（默认） | Scale-out、RoCE storage | 节点及交换机 LLDP 协议拓扑识别 |
+| InfiniBand | Scale-out、Scale-up | NVIDIA Topograph |
+| Spectrum-X | Scale-out | NVIDIA Topograph + NetQ |
 
-场景文档只覆盖该网络需要的 Helm values 和接入步骤；版本、镜像、监控等通用配置统一由
-基础安装文档维护。需要调整其他 Chart 参数时，可查看
+SONiC 交换机接入方式、label 语义和发现链路排查，参见
+[拓扑发现指南](./usage/topology-discovery.zh.md)。需要调整其他 Chart 参数时，可查看
 [Helm values 参考](../chart/README.md)中的默认值和配置说明。
 
 ## 核心功能
@@ -36,13 +37,11 @@ Kubernetes 可以查询和消费的数据：
 Unifabric 使用三类逻辑拓扑：
 
 - **Scale-out 网络**：表示节点通过 leaf、spine、core 等交换机进行横向通信的层级。
-  可以参考[通用 SONiC RoCE](./getting-started-sonic-roce.zh.md)、
-  [Spectrum-X](./getting-started-spectrum-x.zh.md)或
-  [InfiniBand](./getting-started-infiniband.zh.md)等不同场景的设置。
-- **Scale-up 网络**：表示 GPU 间的 NVLink、NVSwitch 等高速互联域。
-  可以参考 [InfiniBand 场景](./getting-started-infiniband.zh.md)进行设置。
+  配置方式和 label 语义参见[拓扑发现指南](./usage/topology-discovery.zh.md)。
+- **Scale-up 网络**：表示 GPU 间的 NVLink、NVSwitch 等高速互联域。当前仅
+  InfiniBand 场景写入 scale-up label，参见[拓扑发现指南](./usage/topology-discovery.zh.md)。
 - **Storage 网络**：表示计算节点访问存储服务所经过的独立 RDMA 网络。当前仅支持
-  [通用 SONiC RoCE](./getting-started-sonic-roce.zh.md)设置。
+  SONiC RoCE 发现方式，参见[拓扑发现指南](./usage/topology-discovery.zh.md)。
 
 发现结果以 Node label 提供给调度器，并汇总到只读 `Topology` CR。可以通过
 [FabricNode、Switch、Topology API 参考](./reference/README.zh.md)查询发现结果。
