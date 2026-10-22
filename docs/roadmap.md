@@ -29,7 +29,7 @@ feedback. Discuss or propose roadmap items through
 | | eBPF Pod-to-Pod flow attribution and RDMAEndpoint | Completed | v0.3.0 |
 | | Per-send flow events with ClickHouse / Elasticsearch storage | Completed | v0.3.0 |
 | | GPU-initiated RDMA (GDAKI / IBGDA) observability | Planned | Backlog |
-| RDMA network health checks | Passive health status (LLDP readiness, switch connectivity, probes) | Completed | v0.1.0 |
+| Network health checks | Passive health status (LLDP readiness, switch connectivity, probes) | Completed | v0.1.0 |
 | | Active network path probing and link degradation detection | Planned | v0.4 |
 
 Status values: `Planned`, `In progress`, `Completed`, `Deferred`.

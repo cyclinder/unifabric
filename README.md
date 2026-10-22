@@ -100,9 +100,9 @@ Use cases:
   it is and which workload it affects quickly with prebuilt Grafana dashboards
   and determine the affected scope
 
-### RDMA network health checks
+### Network health checks
 
-RDMA network health checks continuously monitor the links and configuration of
+Network health checks continuously monitor the links and configuration of
 the three high-speed networks and surface problems proactively, instead of
 troubleshooting after a workload reports a failure.
 

@@ -28,7 +28,7 @@ English version: [roadmap.md](./roadmap.md)
 | | eBPF Pod-to-Pod 流归因与 RDMAEndpoint | Completed | v0.3.0 |
 | | 逐条 send 事件与 ClickHouse / Elasticsearch 存储 | Completed | v0.3.0 |
 | | GPU-initiated RDMA（GDAKI / IBGDA）观测 | Planned | Backlog |
-| RDMA 网络健康检查 | 被动健康状态（LLDP 就绪、交换机连接、探针） | Completed | v0.1.0 |
+| 网络健康检查 | 被动健康状态（LLDP 就绪、交换机连接、探针） | Completed | v0.1.0 |
 | | 主动网络路径探测与链路退化检测 | Planned | v0.4 |
 
 状态取值：`Planned`（规划中）、`In progress`（进行中）、`Completed`（已完成）、`Deferred`（暂缓）。
