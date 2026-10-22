@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="864" viewBox="0 0 960 864" font-family="Helvetica, Arial, sans-serif">
+  <rect width="960" height="864" fill="#ffffff"/>
+
+  <!-- AI workloads layer -->
+  <rect x="24" y="20" width="912" height="100" rx="12" fill="#EFF6FF" stroke="#BFDBFE" stroke-width="1.5"/>
+  <text x="162" y="76" text-anchor="middle" font-size="16" font-weight="bold" fill="#1E40AF">AI Workloads</text>
+  <rect x="300" y="34" width="290" height="72" rx="10" fill="#ffffff" stroke="#BFDBFE" stroke-width="1.5"/>
+  <text x="445" y="76" text-anchor="middle" font-size="15" font-weight="bold" fill="#1E3A8A">Training</text>
+  <rect x="620" y="34" width="290" height="72" rx="10" fill="#ffffff" stroke="#BFDBFE" stroke-width="1.5"/>
+  <text x="765" y="76" text-anchor="middle" font-size="15" font-weight="bold" fill="#1E3A8A">Inference</text>
+
+  <!-- Consumers layer -->
+  <rect x="24" y="144" width="912" height="124" rx="12" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.5"/>
+
+  <!-- Schedulers group -->
+  <rect x="48" y="158" width="424" height="96" rx="10" fill="#ffffff" stroke="#CBD5E1" stroke-width="1.5"/>
+  <text x="260" y="182" text-anchor="middle" font-size="16" font-weight="bold" fill="#334155">Schedulers</text>
+  <rect x="62" y="194" width="124" height="46" rx="8" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.2"/>
+  <text x="124" y="222" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#334155">Kueue</text>
+  <rect x="198" y="194" width="124" height="46" rx="8" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.2"/>
+  <text x="260" y="222" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#334155">Volcano</text>
+  <rect x="334" y="194" width="124" height="46" rx="8" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.2"/>
+  <text x="396" y="222" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#334155">KAI Scheduler</text>
+
+  <rect x="496" y="158" width="200" height="96" rx="10" fill="#ffffff" stroke="#CBD5E1" stroke-width="1.5"/>
+  <text x="596" y="212" text-anchor="middle" font-size="16" font-weight="bold" fill="#334155">Grafana</text>
+
+  <rect x="712" y="158" width="200" height="96" rx="10" fill="#ffffff" stroke="#CBD5E1" stroke-width="1.5"/>
+  <text x="812" y="212" text-anchor="middle" font-size="16" font-weight="bold" fill="#334155">Prometheus</text>
+
+  <!-- Unifabric container -->
+  <rect x="24" y="292" width="912" height="372" rx="12" fill="#DBEAFE" stroke="#93C5FD" stroke-width="1.5"/>
+  <text x="480" y="330" text-anchor="middle" font-size="25" font-weight="bold" fill="#1E3A8A">Unifabric</text>
+  <text x="480" y="356" text-anchor="middle" font-size="12.5" fill="#475569">Observability for the high-speed networks of cloud-native AI clusters</text>
+
+  <!-- Capability: Topology Discovery -->
+  <rect x="40" y="380" width="280" height="268" rx="10" fill="#ffffff" stroke="#93C5FD" stroke-width="1.5"/>
+  <text x="180" y="408" text-anchor="middle" font-size="14.5" font-weight="bold" fill="#1E3A8A">Topology Discovery</text>
+  <text x="180" y="427" text-anchor="middle" font-size="10.5" fill="#64748B">NVIDIA Topograph, etc.</text>
+  <rect x="54" y="456" width="252" height="40" rx="8" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.2"/>
+  <text x="180" y="481" text-anchor="middle" font-size="11.5" fill="#334155">Node Topology Labels</text>
+  <rect x="54" y="516" width="252" height="40" rx="8" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.2"/>
+  <text x="180" y="541" text-anchor="middle" font-size="11.5" fill="#334155">Topology Visualization</text>
+  <rect x="54" y="576" width="252" height="40" rx="8" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.2"/>
+  <text x="180" y="601" text-anchor="middle" font-size="11.5" fill="#334155">Multi Plane</text>
+
+  <!-- Capability: High-Speed Network Traffic Observability -->
+  <rect x="340" y="380" width="280" height="268" rx="10" fill="#ffffff" stroke="#93C5FD" stroke-width="1.5"/>
+  <text x="480" y="406" text-anchor="middle" font-size="14.5" font-weight="bold" fill="#1E3A8A">High-Speed Network</text>
+  <text x="480" y="426" text-anchor="middle" font-size="14.5" font-weight="bold" fill="#1E3A8A">Traffic Observability</text>
+  <rect x="354" y="440" width="252" height="34" rx="8" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.2"/>
+  <text x="480" y="455" text-anchor="middle" font-size="11.5" fill="#334155">RDMA Metrics</text>
+  <text x="480" y="467" text-anchor="middle" font-size="8.5" fill="#64748B">Host · Pod</text>
+  <rect x="354" y="481" width="252" height="34" rx="8" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.2"/>
+  <text x="480" y="502" text-anchor="middle" font-size="11.5" fill="#334155">Switch Metrics</text>
+  <rect x="354" y="522" width="252" height="34" rx="8" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.2"/>
+  <text x="480" y="543" text-anchor="middle" font-size="11.5" fill="#334155">NVLink Metrics</text>
+  <rect x="354" y="563" width="252" height="34" rx="8" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.2"/>
+  <text x="480" y="584" text-anchor="middle" font-size="11.5" fill="#334155">eBPF-based RDMA Tracing</text>
+  <rect x="354" y="604" width="252" height="34" rx="8" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.2"/>
+  <text x="480" y="619" text-anchor="middle" font-size="11.5" fill="#334155">End-to-End Traffic Path Tracing</text>
+  <text x="480" y="631" text-anchor="middle" font-size="8.5" fill="#64748B">per workload · Pod → Host → Switch</text>
+
+  <!-- Capability: Network Health Checks -->
+  <rect x="640" y="380" width="280" height="268" rx="10" fill="#ffffff" stroke="#93C5FD" stroke-width="1.5"/>
+  <text x="780" y="416" text-anchor="middle" font-size="14.5" font-weight="bold" fill="#1E3A8A">Network Health Checks</text>
+  <rect x="654" y="480" width="252" height="40" rx="8" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.2"/>
+  <text x="780" y="505" text-anchor="middle" font-size="11.5" fill="#334155">Passive Health Status</text>
+  <rect x="654" y="548" width="252" height="40" rx="8" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.2"/>
+  <text x="780" y="573" text-anchor="middle" font-size="11.5" fill="#334155">Active Path Probing</text>
+
+  <!-- Infrastructure layer -->
+  <rect x="24" y="688" width="912" height="156" rx="12" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.5"/>
+  <text x="48" y="718" font-size="16" font-weight="bold" fill="#475569">Infrastructure</text>
+
+  <rect x="48" y="734" width="284" height="92" rx="8" fill="#ffffff" stroke="#CBD5E1" stroke-width="1.5"/>
+  <text x="190" y="770" text-anchor="middle" font-size="15" font-weight="bold" fill="#334155">Scale-out Network</text>
+  <text x="190" y="794" text-anchor="middle" font-size="12" fill="#64748B">SONiC RoCE · Spectrum-X · InfiniBand</text>
+
+  <rect x="352" y="734" width="284" height="92" rx="8" fill="#ffffff" stroke="#CBD5E1" stroke-width="1.5"/>
+  <text x="494" y="770" text-anchor="middle" font-size="15" font-weight="bold" fill="#334155">Scale-up Network</text>
+  <text x="494" y="794" text-anchor="middle" font-size="12" fill="#64748B">NVLink · NVSwitch</text>
+
+  <rect x="656" y="734" width="256" height="92" rx="8" fill="#ffffff" stroke="#CBD5E1" stroke-width="1.5"/>
+  <text x="784" y="770" text-anchor="middle" font-size="15" font-weight="bold" fill="#334155">Storage Network</text>
+  <text x="784" y="794" text-anchor="middle" font-size="12" fill="#64748B">RoCE · InfiniBand</text>
+</svg>
