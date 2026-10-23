@@ -61,10 +61,10 @@ network as a label. This meets two problems:
 - Operators have no global map of the network topology. No single place shows the
   full set of links between the nodes, the leaf switches, the spine switches, and
   the core switches. When a training job slows down or a link reports an error,
-  operators first have to piece together, from the switches, the NICs, and the
-  vendor platforms, which nodes share a leaf and which jobs a link carries. Only
-  then can they look for the fault. In a cluster with hundreds of nodes and tens
-  of switches, this step alone takes a long time.
+  operators first have to piece the picture together from the switches, the NICs,
+  and the vendor platforms: which nodes share a leaf, and which jobs a link
+  carries. Only then can they look for the fault. In a cluster with hundreds of
+  nodes and tens of switches, this step alone takes a long time.
 
 Network topology discovery solves these two problems:
 
