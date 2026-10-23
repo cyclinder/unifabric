@@ -38,30 +38,45 @@ In this document you learn:
 
 ## Core Value
 
-For the cloud-native stack, these networks are the last mile. Switch vendors
-provide their own management and monitoring tools, but these tools do not connect
-to Kubernetes, and they do not connect to the AI schedulers. The physical links
-stay inside the switches, the NICs, and the vendor platforms. This causes two
-direct problems:
+A group of training or inference AI workloads needs topology-aware placement. If
+the scheduler spreads their Pods across random nodes of the cluster, their
+traffic crosses the spine tier or the core tier. This adds network latency, and
+the traffic of other jobs interferes. For example, in prefill-decode
+disaggregated inference, the Prefill instances and the Decode instances transfer
+the KV cache between them. If both are under the same leaf switch, the transfer
+takes one hop. If they are in different spine domains, the transfer takes two or
+more extra hops.
 
-- The scheduler cannot see the network topology. It does not know which nodes
-  connect to the same leaf switch. The Pods of one training job spread across the
-  whole cluster at random. Their traffic crosses the spine tier or the core tier,
-  where bandwidth is limited and traffic from other jobs interferes.
-- Operators cannot see the full set of links. To find the nodes and links that a
-  fault affects, they must log in to each switch. In a cluster with hundreds of
-  nodes and tens of switches, this is slow and easy to get wrong.
+Kueue, Volcano, and KAI Scheduler all support topology-aware placement, but they
+do not see the physical network. They read only the topology labels on the Nodes.
+For the scheduler to work, somebody must write the position of each node in the
+network as a label. This meets two problems:
 
-Topology discovery closes this gap:
+- The topology labels have no reliable source. The physical links are spread
+  across the switches, the NICs, and the management platforms of many vendors.
+  The tools of each vendor do not talk to each other, and none of them connect to
+  Kubernetes. In a cluster with hundreds of nodes, manual labeling of each node
+  is slow and easy to get wrong. After a switch is added or a cable is moved, the
+  labels do not follow, and they no longer match the real topology.
+- Operators have no global map of the network topology. No single place shows the
+  full set of links between the nodes, the leaf switches, the spine switches, and
+  the core switches. When a training job slows down or a link reports an error,
+  operators first have to piece together, from the switches, the NICs, and the
+  vendor platforms, which nodes share a leaf and which jobs a link carries. Only
+  then can they look for the fault. In a cluster with hundreds of nodes and tens
+  of switches, this step alone takes a long time.
 
-- It gives schedulers what they need for topology-aware scheduling. Kueue,
-  Volcano, and KAI Scheduler read the Node labels that Unifabric writes and place
-  the Pods of one job in the same switch domain. This shortens the communication
-  path and reduces cross-tier traffic and interference.
-- It brings cloud-native management to the network devices of a large cluster.
-  Switches become `Switch` resources, and the fabric becomes a `Topology`
-  resource. Operators see which nodes and jobs a switch or a link affects with
-  `kubectl` and Grafana, without a login to the switch.
+Network topology discovery solves these two problems:
+
+- It produces the topology labels that the scheduler needs. Unifabric discovers
+  the leaf, spine, and core domain of each node in real time and writes them as
+  Node labels. The scheduler consumes them directly and places the Pods of one job
+  in the same switch domain. When the physical topology changes, the labels
+  update.
+- It gives one global topology map in real time. Each switch becomes a `Switch`
+  resource, each of the three fabrics becomes a `Topology` resource, and Grafana
+  renders them as a graph. When a switch or a link fails, operators see on the
+  graph which nodes and which jobs it affects, and then go to the fault.
 - It gives one topology model for all vendors. Whether the devices are SONiC,
   NVIDIA Spectrum, or InfiniBand, the result uses the same label model and the
   same `Topology` resource. The scheduler configuration and the operations
