@@ -5,7 +5,7 @@ English | [简体中文](./README-zh_cn.md)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](./LICENSE)
 [![Release](https://img.shields.io/github/v/release/unifabric-io/unifabric)](https://github.com/unifabric-io/unifabric/releases)
 
-> Observability for the high-speed networks of cloud-native AI clusters.
+> Cloud native Observability for the high-speed AI networks.
 
 ## Introduction
 
@@ -30,6 +30,15 @@ presents the result through one Kubernetes resource model: CRDs, Node labels, an
 metrics. The observation also feeds back into scheduling. Schedulers such as Kueue
 and Volcano consume the topology labels, which improves training and inference
 efficiency.
+
+## Architecture
+
+![Unifabric product architecture](./docs/images/product-architecture.png)
+
+Unifabric sits on top of the scale-out, scale-up, and storage networks. It discovers
+them directly, or imports topology from NVIDIA Topograph and NetQ. It presents the
+three core capabilities through one Kubernetes resource model. Schedulers, Grafana,
+and Prometheus consume the result.
 
 ## Core Features
 
@@ -121,16 +130,6 @@ Use cases:
 - **Before launching a training job**: verify the health of the network paths in
   advance, so long-running training jobs are not interrupted or slowed down by
   link degradation or configuration faults
-
-## Architecture
-
-![Unifabric product architecture](./docs/images/product-architecture.svg)
-
-Unifabric sits on top of the scale-out, scale-up, and storage networks. It discovers
-them directly, or imports topology from NVIDIA Topograph and NetQ. It presents the
-three core capabilities through one Kubernetes resource model. Schedulers, Grafana,
-and Prometheus consume the result. For the component architecture, see the
-[architecture overview](./docs/concepts/architecture.md).
 
 ## Quick Start
 

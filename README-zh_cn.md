@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](./LICENSE)
 [![Release](https://img.shields.io/github/v/release/unifabric-io/unifabric)](https://github.com/unifabric-io/unifabric/releases)
 
-> 云原生 AI 集群高速网络的可观测系统
+> 面向 AI 高速网络的云原生可观测系统
 
 ## 简介
 
@@ -22,6 +22,14 @@ Unifabric 用云原生的方式补上这块空白：自动识别三张网络的�
 流量并归因到 workload，主动探测网络健康。无论底层是哪家厂商的设备，都以统一的
 Kubernetes 资源模型（CRD、Node label、metrics）呈现，并且观测不止于看板——拓扑
 label 直接被 Kueue、Volcano 等调度器消费，提升 AI 集群的训练与推理效率。
+
+## 架构
+
+![Unifabric 产品架构图](./docs/images/product-architecture.png)
+
+Unifabric 构建在 scale-out、scale-up 和存储三张网络之上：直接发现这些网络，或从
+NVIDIA Topograph、NetQ 导入拓扑，以统一的 Kubernetes 资源模型对外提供三大核心能力，
+由调度器、Grafana 和 Prometheus 消费。
 
 ## 核心特性
 
@@ -93,15 +101,6 @@ label 直接被 Kueue、Volcano 等调度器消费，提升 AI 集群的训练�
   无需逐台设备人工检查
 - **训练任务开跑前**：提前验证网络路径健康，避免长时间训练任务
   因链路劣化或配置故障中断或降速
-
-## 架构
-
-![Unifabric 产品架构图](./docs/images/product-architecture.svg)
-
-Unifabric 构建在 scale-out、scale-up 和存储三张网络之上：直接发现这些网络，或从
-NVIDIA Topograph、NetQ 导入拓扑，以统一的 Kubernetes 资源模型对外提供三大核心能力，
-由调度器、Grafana 和 Prometheus 消费。组件级架构详见
-[架构总览](./docs/concepts/architecture.zh.md)。
 
 ## 快速开始
 
