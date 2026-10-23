@@ -22,7 +22,7 @@ datasource plugin queries that API. A Grafana panel plugin renders the graph.
 
 - Unifabric is installed through the [basic installation](../../getting-started.md),
   and topology discovery is complete according to the
-  [topology discovery guide](../topology-discovery.md).
+  [topology discovery guide](./README.md).
 - Grafana Operator and its CRDs are installed in the cluster.
 - The following command returns at least one `Topology` resource:
 
@@ -214,7 +214,7 @@ First make sure that the preconditions hold:
 1. Make sure that `kubectl get topologies` returns resources and that each resource
    has `status.domains` and `status.nodes`.
 2. Make sure that topology discovery is complete. See the verification steps in the
-   [topology discovery guide](../topology-discovery.md#view-topology-and-node-labels).
+   [topology discovery guide](./README.md#view-topology-and-node-labels).
 3. Make sure that the Cluster selection of the dashboard matches the API cluster name.
 
 ### Nodes Appear Under Outside Topology

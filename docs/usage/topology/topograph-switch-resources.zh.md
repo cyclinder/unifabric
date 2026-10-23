@@ -79,6 +79,6 @@ tier1-group2	[]
 
 ## 参考
 
-- [拓扑发现](../topology-discovery.zh.md):Spectrum-X 和 InfiniBand 场景说明。
+- [网络拓扑发现](./README.zh.md):NetQ 导入和 InfiniBand 方式。
 - [Switch 参考](../../reference/switch.zh.md):`Switch` 资源的字段。
 - [Topology CRD 设计](../../design/topology-crd.zh.md):`switchMember` 的填充规则。

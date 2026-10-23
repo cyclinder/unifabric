@@ -1,28 +1,28 @@
-# SONiC Switch Onboarding
+# switch-agent Onboarding
 
-中文版: [sonic-switch-onboarding.zh.md](./sonic-switch-onboarding.zh.md)
+中文版: [switch-agent-onboarding.zh.md](./switch-agent-onboarding.zh.md)
 
 ## Introduction
 
-In the generic SONiC RoCE scenario, the Unifabric Agent discovers the links from
-the nodes to the leaf switches through LLDP on the nodes. The spine tier and the
-core tier above the leaf need information from the switch side. This document
-describes the two forms that bring SONiC switches into topology discovery:
+In LLDP discovery, the Unifabric Agent on each node discovers the links from the
+nodes to the leaf switches. The links between the switches come from the Unifabric
+switch-agent. switch-agent runs on each switch, collects the LLDP neighbors of the
+switch, and serves them to the Controller over mTLS gRPC on port `8090`. This
+document describes how to run switch-agent on the switches and how to register the
+switches in Kubernetes.
 
-| Form | What you do | Tiers discovered |
-| --- | --- | --- |
-| [Form 1: the switches run switch-agent](#form-1-the-switches-run-switch-agent) | Run the Unifabric switch-agent on each switch. It collects the LLDP snapshot on the switch and serves it to the Controller over mTLS gRPC on port `8090`. Create one `Switch` resource per switch in Kubernetes. | Node, leaf, spine, core. All tiers are discovered automatically. |
-| [Form 2: the switches cannot run switch-agent](#form-2-the-switches-cannot-run-switch-agent) | Deploy nothing on the switches. Create a `Switch` resource for each switch at the spine tier and above, and declare its neighbors. | Automatic discovery stops at the leaf. The spine tier and above come from the declaration. |
-
-If you can run a container or a binary on the switches, select Form 1. If a
-security policy forbids it, or another team manages the switches, select Form 2.
-For the result and the limitations of each form, see
-[Topology Discovery](../topology-discovery.md#scenario-1-generic-sonic-roce).
+switch-agent runs on SONiC switches and on NVIDIA Spectrum switches that run
+Cumulus Linux. It also runs on other Ethernet switches that provide Docker or a
+Linux shell. If you cannot run software on the switches, use
+[Manual topology](./manual-topology.md) instead. For the result and the
+limitations of this method, see
+[Network Topology Discovery](./README.md#method-1-lldp-discovery-with-switch-agent).
 
 ## Prerequisites
 
 - Unifabric is deployed according to the [basic installation](../../getting-started.md),
-  and `topoDiscovery.scaleOut.mode` is `unifabric-roce`.
+  and `topoDiscovery.scaleOut.mode` or `topoDiscovery.storage.mode` is
+  `unifabric-roce`.
 - LLDP is enabled on every switch. Run the command on the switch. A leaf must see
   the nodes and the spine. A spine must see all leaf switches:
 
@@ -34,11 +34,15 @@ For the result and the limitations of each form, see
   <!-- TODO: collect the output from a real environment -->
   ```
 
-- Form 1 also needs: the Kubernetes Node that runs `unifabric-controller` can reach
-  TCP port `8090` on the management IP of every switch, and a host with a
-  `kubectl` context is available to export the mTLS certificates.
+- The Kubernetes Node that runs `unifabric-controller` can reach TCP port `8090`
+  on the management IP of every switch. The management IP is usually on the
+  out-of-band management network. Make sure that the firewall or ACL of the
+  switch allows inbound connections to port `8090` from the Controller node, and
+  that the firewall of the Controller node allows outbound connections to the
+  switches.
+- A host with a `kubectl` context is available to export the mTLS certificates.
 
-## Form 1: The Switches Run switch-agent
+## Procedure
 
 Complete Step 1 to Step 3 for every switch in the topology (leaf, spine, and core).
 
@@ -62,15 +66,16 @@ chmod 0644 ./tmp-switch-mtls/tls.crt ./tmp-switch-mtls/peer.crt
 chmod 0600 ./tmp-switch-mtls/tls.key
 ```
 
-Variant A reads this directory through `CERT_SOURCE_DIR` and installs the files on
-each switch. For the main path, Variant B, and Variant C, you copy the files to
-each switch yourself. Each procedure names the target directory.
+Deployment option 1 reads this directory through `CERT_SOURCE_DIR` and installs
+the files on each switch. For the default deployment, option 2, and option 3, you
+copy the files to each switch yourself. Each procedure names the target
+directory.
 
 ### Step 2: Run switch-agent on the Switch
 
-The default `socket` mode is the main path. It mounts only the `lldpd` socket and
-the mTLS directory. It does not need host network, host UTS, or privileged
-permissions. First copy the three files from Step 1 to
+The default deployment is one `docker run` per switch in `socket` mode. It mounts
+only the `lldpd` socket and the mTLS directory. It does not need host network,
+host UTS, or privileged permissions. First copy the three files from Step 1 to
 `/opt/unifabric-switch-agent/mtls/` on the switch:
 
 ```bash
@@ -80,7 +85,7 @@ sudo chmod 700 /opt/unifabric-switch-agent/mtls
 
 Then start the container on the switch. Replace `<release-tag>` with the same
 release tag as the Controller. `SWITCH_NAME` must match the LLDP hostname of the
-switch:
+switch. `-p 8090:8090` publishes the gRPC port that the Controller connects to:
 
 ```bash
 export SWITCH_AGENT_IMAGE="ghcr.io/unifabric-io/unifabric-switch-agent:<release-tag>"
@@ -111,15 +116,16 @@ docker logs --tail 100 unifabric-switch-agent
 <!-- TODO: collect the output from a real environment -->
 ```
 
-The three variants below apply when the main path is not usable:
+The three deployment options below apply when the default deployment is not
+usable:
 
-| Variant | Use it when |
+| Deployment option | Use it when |
 | --- | --- |
-| Variant A: deployment script | The switches run Docker, and you deploy several switches from one management host. |
-| Variant B: manual container in `hostProc` mode | The switch runs Docker, but the switch OS does not expose `/run/lldpd.socket`, or the socket permissions block container access. |
-| Variant C: systemd service | The switch cannot run Docker or another container runtime. |
+| Option 1: deployment script | The switches run Docker, and you deploy several switches from one management host. |
+| Option 2: container in `hostProc` mode | The switch runs Docker, but the switch OS does not expose `/run/lldpd.socket`, or the socket permissions block container access. |
+| Option 3: systemd service | The switch cannot run Docker or another container runtime. |
 
-#### Variant A: Deploy Several Switches with the Script
+#### Deployment Option 1: Deploy Several Switches with the Script
 
 The project provides
 [deploy-switch-agent.sh](../../../tools/deploy-switch-agent/deploy-switch-agent.sh).
@@ -147,7 +153,7 @@ and `scp`. It needs `sshpass` only for password authentication. Each switch need
 - The switch-agent image preloaded in local Docker.
 - Non-interactive SSH commands that reach a Linux shell.
 
-Run all commands in this variant on the management host, unless a step says
+Run all commands in this option on the management host, unless a step says
 otherwise.
 
 1. Select the LLDP collection mode. The script passes the mode to the container on
@@ -263,7 +269,7 @@ otherwise.
    <!-- TODO: collect the output from a real environment -->
    ```
 
-#### Variant B: Run the Container Manually in hostProc Mode
+#### Deployment Option 2: Run the Container in hostProc Mode
 
 `hostProc` mode mounts the host `/proc` and runs the host `lldpcli` with `nsenter`
 in the mount and network namespaces of the host. `nsenter` is a Linux tool that
@@ -272,7 +278,7 @@ runs a command inside the namespaces of another process. This mode uses the
 the switch-agent image. This mode does not read
 `UNIFABRIC_SWITCH_AGENT_LLDP_CLI_VERSION`.
 
-Run all commands in this variant on the target switch.
+Run all commands in this option on the target switch.
 
 1. Install the exported mTLS files to `/opt/unifabric-switch-agent/mtls`:
 
@@ -310,7 +316,7 @@ Run all commands in this variant on the target switch.
 
    > **Warning:** The container runs with `--privileged`, host network, host UTS,
    > and the host `/proc`. If the switch OS exposes `/run/lldpd.socket` reliably,
-   > use the default `socket` mode in
+   > use the default deployment in
    > [Step 2](#step-2-run-switch-agent-on-the-switch) instead. It has a smaller
    > permission surface.
 
@@ -325,14 +331,14 @@ Run all commands in this variant on the target switch.
    <!-- TODO: collect the output from a real environment -->
    ```
 
-#### Variant C: Install as a systemd Service
+#### Deployment Option 3: Install as a systemd Service
 
-Use this variant when the switch cannot run Docker or another container runtime.
+Use this option when the switch cannot run Docker or another container runtime.
 switch-agent runs as a native Linux binary, and systemd manages it. It calls the
 local `lldpcli` on the switch directly, so it does not mount `/run/lldpd.socket`.
 The switch needs `lldpcli`, and the systemd `PATH` must find it.
 
-Run all commands in this variant on the target switch.
+Run all commands in this option on the target switch.
 
 1. Download and install the binary that matches the CPU architecture of the switch
    from the GitHub Release page:
@@ -441,44 +447,12 @@ to `Storage`.
 > **Note:** `metadata.name` does not have to match the switch hostname. The
 > Controller uses `Switch.status.hostname` to match the switch-side data with the
 > hostname that the node LLDP discovered. Do not add the
-> `unifabric.io/switch-neighbors` annotation in this form.
-
-## Form 2: The Switches Cannot Run switch-agent
-
-LLDP on the nodes already discovered the leaf switches. Do not create `Switch`
-resources for the leaf switches. Create one `Switch` resource only for each switch
-at the spine tier and above. Declare the switches one tier below it with the
-`unifabric.io/switch-neighbors` annotation. The example declares that `spine1`
-connects to `leaf1` to `leaf4`:
-
-```bash
-kubectl apply -f - <<'EOF'
-apiVersion: unifabric.io/v1beta1
-kind: Switch
-metadata:
-  name: spine1
-  annotations:
-    unifabric.io/switch-neighbors: '["leaf1", "leaf2", "leaf3", "leaf4"]'
-spec:
-  role: ScaleOut
-EOF
-```
-
-The annotation value is a quoted JSON array of strings. Each name must be the LLDP
-hostname of a leaf that the nodes discovered, or the name of another `Switch`
-resource. Do not use a Kubernetes Node name. If the network has a core tier,
-create one more `Switch` resource for each core switch. Its neighbors are the
-names of the spine switches that connect to it.
-
-> **Warning:** The declared neighbors do not update when the physical links
-> change. After you add a switch or move a cable, update the annotation. Otherwise
-> the Node labels do not match the real topology. Do not run switch-agent and set
-> this annotation on the same switch.
+> `unifabric.io/switch-neighbors` annotation to any `Switch` of the same role.
+> That annotation selects [Manual topology](./manual-topology.md).
 
 ## Verification
 
-Form 1: make sure that the Controller connected to the switch-agent on every
-switch:
+Make sure that the Controller connected to the switch-agent on every switch:
 
 ```bash
 kubectl get switches -o wide
@@ -496,9 +470,8 @@ spine1   192.0.2.21   ScaleOut   true      4
 The switch side is complete when every `Switch` shows `HEALTHY` as `true` and
 `NEIGHBORS` matches the real neighbor count of the switch.
 
-The final result of both forms is the Node labels and the `Topology` resource. To
-view them, see
-[Topology Discovery](../topology-discovery.md#view-topology-and-node-labels).
+The final result is the Node labels and the `Topology` resource. To view them, see
+[Network Topology Discovery](./README.md#view-topology-and-node-labels).
 
 ## Troubleshooting
 
@@ -532,7 +505,7 @@ Make sure that the remote user has root permission for Docker and for the
 certificate directory. If the sudo password differs from the SSH password, set
 `SUDO_PASSWORD` before the run.
 
-### Form 1 Shows No Spine Tier
+### No Spine Tier Is Discovered
 
 - Make sure that every physical switch in the topology has a `Switch` resource and
   a running switch-agent.
@@ -546,23 +519,12 @@ certificate directory. If the sudo password differs from the SSH password, set
   docker logs --tail 100 unifabric-switch-agent
   ```
 
-### Form 2 Shows No Spine Tier
-
-- Make sure that every `Switch` with the same role has the
-  `unifabric.io/switch-neighbors` annotation.
-- Make sure that no `Switch` resource has the same name as a leaf that the nodes
-  discovered.
-- Make sure that the annotation is a quoted JSON array of strings, and that the
-  array contains only switch names, not Kubernetes Node names.
-- Make sure that each neighbor name resolves to a leaf that the node LLDP
-  discovered, or to another `Switch` resource with the same role.
-- If no `Switch` resource exists, or the physical network has only a leaf tier,
-  Node labels with only tier 1 are the expected result.
-
 ## References
 
-- [Topology Discovery](../topology-discovery.md): the scenarios and how to view the
-  result.
+- [Network Topology Discovery](./README.md): the discovery methods and how to view
+  the result.
+- [Manual topology](./manual-topology.md): declare switch neighbors instead of
+  running switch-agent.
 - [Switch reference](../../reference/switch.md): the `spec` and `status` fields of
   the `Switch` resource.
 - [Scale-out topology design](../../design/scaleout-topology.md): how the

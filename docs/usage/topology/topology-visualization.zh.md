@@ -18,7 +18,7 @@ Grafana 面板插件渲染拓扑图。
 
 ## 前提条件
 
-- 已按[基础安装](../../getting-started.zh.md)安装 Unifabric,并按[拓扑发现指南](../topology-discovery.zh.md)
+- 已按[基础安装](../../getting-started.zh.md)安装 Unifabric,并按[拓扑发现指南](./README.zh.md)
   完成拓扑发现。
 - 集群中已安装 Grafana Operator 及其 CRD。
 - 以下命令返回至少一个 `Topology` 资源:
@@ -196,7 +196,7 @@ Storage 域位于 Node 行下方。
 
 1. 确认 `kubectl get topologies` 返回资源,且每个资源都有 `status.domains` 和
    `status.nodes`。
-2. 确认拓扑发现已完成。参见[拓扑发现指南](../topology-discovery.zh.md#查看-topology-与-node-label)
+2. 确认拓扑发现已完成。参见[拓扑发现指南](./README.zh.md#查看-topology-与-node-label)
    的验证步骤。
 3. 确认仪表盘的 Cluster 选项与 API 的集群名一致。
 

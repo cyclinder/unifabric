@@ -87,8 +87,7 @@ Grafana topology dashboard. The switch member card shows the switch. See
 
 ## References
 
-- [Topology Discovery](../topology-discovery.md): the Spectrum-X and InfiniBand
-  scenarios.
+- [Network Topology Discovery](./README.md): the NetQ and InfiniBand methods.
 - [Switch reference](../../reference/switch.md): the fields of the `Switch`
   resource.
 - [Topology CRD design](../../design/topology-crd.md): the rules that fill
