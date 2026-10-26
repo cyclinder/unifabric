@@ -4,21 +4,21 @@ English version: [topograph-switch-resources.md](./topograph-switch-resources.md
 
 ## 简介
 
-在 NVIDIA Spectrum-X 和 InfiniBand 场景中,Node label 和 `Topology` 资源由 NVIDIA
-Topograph 产生。Unifabric 的 LLDP 发现不参与,所以集群中没有 `Switch` 资源。在
-`Topology` 资源中,每个性能域的 `members` 列表为空。在拓扑可视化中,每个域的交换机
+在 NVIDIA Spectrum-X 和 InfiniBand 场景中,NVIDIA Topograph 产生 Node label 和
+`Topology` 资源。Unifabric 的 LLDP 发现不参与,所以集群中没有 `Switch` 资源。在
+`Topology` 资源中,每个性能域的 `switchMember` 列表为空。在拓扑可视化中,每个域的交换机
 成员卡片也为空。调度和 label 不受影响。
 
 如果需要拓扑可视化显示交换机,为每台交换机创建一个仅含标签的 `Switch` 资源。仅含
-标签的 `Switch` 资源没有 `mgmtIP`、没有 tier、也不需要 switch-agent。Controller 只
-读取它的 `unifabric.io/domain` label,把交换机加入对应的性能域。本步骤是可选的。
+标签的 `Switch` 资源没有 `mgmtIP`,没有 tier,也不需要 switch-agent。Controller 只
+读取它的 `unifabric.io/domain` label。它把交换机加入对应的性能域。本步骤是可选的。
 
 ## 前提条件
 
-- 已按[基础安装](../../getting-started.zh.md)完成 Spectrum-X 或 InfiniBand 场景的
-  部署,并且 `kubectl get nodes -L scale-out.unifabric.io/tier-1` 中已出现拓扑 label。
+- 已按 [NetQ 导入](./netq-import.zh.md)或 [InfiniBand 发现](./infiniband-discovery.zh.md)完成
+  配置,并且 `kubectl get nodes -L scale-out.unifabric.io/tier-1` 中已出现拓扑 label。
 - 知道每台交换机属于哪个性能域。例如,NetQ 的输出或 `ibnetdiscover` 的输出显示
-  `leaf1` 属于哪个 leaf 域。
+  哪个 leaf 域包含 `leaf1`。
 
 ## 配置与使用
 
@@ -59,13 +59,13 @@ Topograph 产生。Unifabric 的 LLDP 发现不参与,所以集群中没有 `Swi
    EOF
    ```
 
-> **注意:** Topograph 场景下,只有 Topograph 写入 Node label。仅含标签的 `Switch`
-> 资源不参与拓扑计算,也不改变任何 Node label。
+> 注意:在 Topograph 场景中,只有 Topograph 写入 Node label。仅含标签的 `Switch`
+> 资源不参与拓扑计算。它不改变任何 Node label。
 
 ## 验证
 
 ```bash
-kubectl get topologies.unifabric.io scaleout -o jsonpath='{range .status.domains[*]}{.name}{"\t"}{.members}{"\n"}{end}'
+kubectl get topologies.unifabric.io scaleout -o jsonpath='{range .status.domains[*]}{.name}{"\t"}{.switchMember}{"\n"}{end}'
 ```
 
 ```text
@@ -74,11 +74,11 @@ tier1-group1	["leaf1"]
 tier1-group2	[]
 ```
 
-对应域的 `members` 中出现交换机名称后,刷新 Grafana 拓扑仪表盘。交换机成员卡片随之
+对应域的 `switchMember` 中出现交换机名称后,刷新 Grafana 拓扑仪表盘。交换机成员卡片随之
 显示该交换机。参见[拓扑可视化](./topology-visualization.zh.md)。
 
 ## 参考
 
-- [网络拓扑发现](./README.zh.md):NetQ 导入和 InfiniBand 方式。
+- [NetQ 导入](./netq-import.zh.md)、[InfiniBand 发现](./infiniband-discovery.zh.md):使用本步骤的发现方式。
 - [Switch 参考](../../reference/switch.zh.md):`Switch` 资源的字段。
 - [Topology CRD 设计](../../design/topology-crd.zh.md):`switchMember` 的填充规则。

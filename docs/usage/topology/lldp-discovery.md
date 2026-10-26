@@ -1,30 +1,48 @@
-# switch-agent Onboarding
+# LLDP Discovery
 
-中文版: [switch-agent-onboarding.zh.md](./switch-agent-onboarding.zh.md)
+中文版: [lldp-discovery.zh.md](./lldp-discovery.zh.md)
 
 ## Introduction
 
-In LLDP discovery, the Unifabric Agent on each node discovers the links from the
-nodes to the leaf switches. The links between the switches come from the Unifabric
-switch-agent. switch-agent runs on each switch, collects the LLDP neighbors of the
-switch, and serves them to the Controller over mTLS gRPC on port `8090`. This
-document describes how to run switch-agent on the switches and how to register the
+LLDP is a protocol. A device uses it to advertise its identity and its ports to the
+device at the other end of a link. LLDP discovery has two parts:
+
+- The Unifabric Agent on each node reads the LLDP neighbors of each RDMA NIC. This
+  gives the links from the node to the leaf switches.
+- The Unifabric switch-agent on each switch reads the LLDP neighbors of the switch.
+  This gives the links between the switches. switch-agent serves them to the
+  Controller over mTLS gRPC on port `8090`.
+
+The Controller merges the two parts and calculates the leaf, spine, and core tiers.
+This document tells how to run switch-agent on the switches and how to register the
 switches in Kubernetes.
 
-switch-agent runs on SONiC switches and on NVIDIA Spectrum switches that run
-Cumulus Linux. It also runs on other Ethernet switches that provide Docker or a
-Linux shell. If you cannot run software on the switches, use
-[Manual topology](./manual-topology.md) instead. For the result and the
-limitations of this method, see
-[Network Topology Discovery](./README.md#method-1-lldp-discovery-with-switch-agent).
+| Item | Description |
+| --- | --- |
+| Applicable networks | Scale-out network, Storage network |
+| Topology source | The LLDP neighbors on the node side and on the switch side |
+| Discovered tiers | Node, leaf, spine, core. All tiers. |
+| Switch side requirements | LLDP is enabled. Docker or a Linux shell is available to run switch-agent. SONiC meets these requirements. |
+| Cluster side requirements | The node that runs `unifabric-controller` can reach TCP port `8090` on the switch management IP. |
+| Helm configuration | `topoDiscovery.scaleOut.mode=unifabric-roce` or `topoDiscovery.storage.mode=unifabric-roce`. Both are the default values. The Storage network also needs a NIC selector. See [basic installation](../../getting-started.md#installation). |
+
+If your security policy does not let you run software on the switches, use
+[Custom topology](./custom-topology.md) instead. Also use it if the switch OS has
+no Docker and no Linux shell.
+
+> Note: NVIDIA Spectrum switches run Cumulus Linux, which supports LLDP and Docker.
+> Thus switch-agent can run on them in theory, but this is not verified.
+
+To select a discovery method for each network on different network devices, see
+[Network topology discovery](./README.md#choose-a-discovery-method-by-network).
 
 ## Prerequisites
 
 - Unifabric is deployed according to the [basic installation](../../getting-started.md),
   and `topoDiscovery.scaleOut.mode` or `topoDiscovery.storage.mode` is
   `unifabric-roce`.
-- LLDP is enabled on every switch. Run the command on the switch. A leaf must see
-  the nodes and the spine. A spine must see all leaf switches:
+- LLDP is enabled on every switch. Run the command below on the switch. A leaf must
+  see the nodes and the spine. A spine must see all leaf switches:
 
   ```bash
   lldpcli show neighbors -f json0
@@ -37,10 +55,11 @@ limitations of this method, see
 - The Kubernetes Node that runs `unifabric-controller` can reach TCP port `8090`
   on the management IP of every switch. The management IP is usually on the
   out-of-band management network. Make sure that the firewall or ACL of the
-  switch allows inbound connections to port `8090` from the Controller node, and
-  that the firewall of the Controller node allows outbound connections to the
-  switches.
-- A host with a `kubectl` context is available to export the mTLS certificates.
+  switch allows inbound connections to port `8090` from the Controller node. Also
+  make sure that the firewall of the Controller node allows outbound connections
+  to the switches.
+- A host with a configured `kubectl` context is available to export the mTLS
+  certificates.
 
 ## Procedure
 
@@ -213,7 +232,7 @@ otherwise.
    <!-- TODO: collect the output from a real environment -->
    ```
 
-   > **Note:** The SSH key authenticates only the login. The script still runs
+   > Note: The SSH key authenticates only the login. The script still runs
    > remote `sudo` to install the certificates and to operate Docker. If the remote
    > user has passwordless sudo, no more options are needed. If sudo needs a
    > password, add `SUDO_AUTH_MODE=password`. The script asks for the password
@@ -236,7 +255,7 @@ otherwise.
    <!-- TODO: collect the output from a real environment -->
    ```
 
-   > **Note:** Password mode assumes that the SSH password is also the sudo
+   > Note: Password mode assumes that the SSH password is also the sudo
    > password. If they differ, set `SUDO_PASSWORD` separately before the run.
 
    The script accepts these environment variables:
@@ -314,7 +333,7 @@ Run all commands in this option on the target switch.
    <!-- TODO: collect the output from a real environment -->
    ```
 
-   > **Warning:** The container runs with `--privileged`, host network, host UTS,
+   > Warning: The container runs with `--privileged`, host network, host UTS,
    > and the host `/proc`. If the switch OS exposes `/run/lldpd.socket` reliably,
    > use the default deployment in
    > [Step 2](#step-2-run-switch-agent-on-the-switch) instead. It has a smaller
@@ -413,11 +432,11 @@ Run all commands in this option on the target switch.
 
 ### Step 3: Create the Switch Resources
 
-After the agent runs, create one Kubernetes `Switch` resource for each physical
-switch on the host with `kubectl` access. The Controller connects to
+After the agent runs, go to the host with `kubectl` access. Create one Kubernetes
+`Switch` resource for each physical switch. The Controller connects to
 `spec.mgmtIP` and `spec.grpcPort` to read the LLDP snapshot. The `192.0.2.0/24`
-addresses below are examples. Replace them with the real management IP of each
-switch:
+addresses below are only examples. Replace them with the real management IP of
+each switch:
 
 ```bash
 kubectl apply -f - <<'EOF'
@@ -441,14 +460,16 @@ spec:
 EOF
 ```
 
-Repeat for the other switches. For the switches of the storage network, set `role`
+Repeat for the other switches. For the switches of the Storage network, set `role`
 to `Storage`.
 
-> **Note:** `metadata.name` does not have to match the switch hostname. The
-> Controller uses `Switch.status.hostname` to match the switch-side data with the
-> hostname that the node LLDP discovered. Do not add the
-> `unifabric.io/switch-neighbors` annotation to any `Switch` of the same role.
-> That annotation selects [Manual topology](./manual-topology.md).
+> Note: `metadata.name` does not have to match the switch hostname.
+
+> The Controller uses `Switch.status.hostname` to match the switch-side data with
+> the hostname that the node LLDP discovered.
+
+> Do not add the `unifabric.io/switch-neighbors` annotation to any `Switch` of the
+> same role. That annotation selects [Custom topology](./custom-topology.md).
 
 ## Verification
 
@@ -467,25 +488,26 @@ leaf4    192.0.2.14   ScaleOut   true      3
 spine1   192.0.2.21   ScaleOut   true      4
 ```
 
-The switch side is complete when every `Switch` shows `HEALTHY` as `true` and
-`NEIGHBORS` matches the real neighbor count of the switch.
+The switch side is complete when two conditions are true for every `Switch`.
+`HEALTHY` is `true`, and `NEIGHBORS` matches the real neighbor count of the switch.
 
 The final result is the Node labels and the `Topology` resource. To view them, see
-[Network Topology Discovery](./README.md#view-topology-and-node-labels).
+[Network topology discovery](./README.md#view-topology-and-node-labels).
 
 ## Troubleshooting
 
 ### The Log Shows lldpcli command not found
 
-First make sure that the prerequisites are met. Log in to the switch and run:
+First make sure that the prerequisites are true. Log in to the switch and run:
 
 ```bash
 lldpcli -f json0 show neighbors
 ```
 
-If the command fails, install `lldpd` and `lldpcli` on the switch. If the command
-works in an interactive shell but the systemd service still fails, make sure that
-the `PATH` line in the service file includes the directory of `lldpcli`.
+If the command fails, install `lldpd` and `lldpcli` on the switch. The command can
+work in an interactive shell while the systemd service still fails. In this case,
+make sure that the `PATH` line in the service file includes the directory of
+`lldpcli`.
 
 ### Switch.status.healthy Stays false
 
@@ -497,13 +519,13 @@ the `PATH` line in the service file includes the directory of `lldpcli`.
 ### The Script Reports a Missing Local Image
 
 The script never runs `docker pull`. Import the correct image version into Docker
-on that switch, then run the script again.
+on that switch. Then run the script again.
 
 ### The Script Fails at Remote sudo
 
 Make sure that the remote user has root permission for Docker and for the
-certificate directory. If the sudo password differs from the SSH password, set
-`SUDO_PASSWORD` before the run.
+certificate directory. If the sudo password is different from the SSH password,
+set `SUDO_PASSWORD` before the run.
 
 ### No Spine Tier Is Discovered
 
@@ -521,13 +543,13 @@ certificate directory. If the sudo password differs from the SSH password, set
 
 ## References
 
-- [Network Topology Discovery](./README.md): the discovery methods and how to view
+- [Network topology discovery](./README.md): the discovery methods and how to view
   the result.
-- [Manual topology](./manual-topology.md): declare switch neighbors instead of
+- [Custom topology](./custom-topology.md): declare the switch neighbors instead of
   running switch-agent.
 - [Switch reference](../../reference/switch.md): the `spec` and `status` fields of
   the `Switch` resource.
 - [Scale-out topology design](../../design/scaleout-topology.md): how the
-  Controller uses the switch-side LLDP snapshot and the neighbor declaration.
+  Controller uses the switch-side LLDP snapshot.
 - [deploy-switch-agent.sh](../../../tools/deploy-switch-agent/deploy-switch-agent.sh):
   the batch deployment script.

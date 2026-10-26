@@ -5,22 +5,22 @@
 ## Introduction
 
 In the NVIDIA Spectrum-X and InfiniBand scenarios, NVIDIA Topograph produces the
-Node labels and the `Topology` resource. The LLDP discovery of Unifabric is not
-involved, so the cluster has no `Switch` resources. In the `Topology` resource,
-the `members` list of each performance domain is empty. In topology
+Node labels and the `Topology` resource. The LLDP discovery of Unifabric takes
+no part, so the cluster has no `Switch` resources. In the `Topology` resource,
+the `switchMember` list of each performance domain is empty. In topology
 visualization, the switch member card of each domain is also empty. Scheduling
-and the labels are not affected.
+and the labels do not change.
 
 If you want topology visualization to show the switches, create one label-only
 `Switch` resource for each switch. A label-only `Switch` resource has no
-`mgmtIP`, no tier, and no switch-agent. The Controller reads only its
-`unifabric.io/domain` label and adds the switch to the matching performance
-domain. This step is optional.
+`mgmtIP` and no tier, and it does not need switch-agent. The Controller reads
+only its `unifabric.io/domain` label. It adds the switch to the matching
+performance domain. This step is optional.
 
 ## Prerequisites
 
-- Unifabric is deployed for the Spectrum-X or InfiniBand scenario according to the
-  [basic installation](../../getting-started.md), and
+- You completed the configuration in [NetQ import](./netq-import.md) or
+  [InfiniBand discovery](./infiniband-discovery.md), and
   `kubectl get nodes -L scale-out.unifabric.io/tier-1` shows topology labels.
 - You know which performance domain each switch belongs to. For example, the NetQ
   output or the `ibnetdiscover` output shows which leaf domain contains `leaf1`.
@@ -40,8 +40,8 @@ domain. This step is optional.
    ```
 
 2. Create one `Switch` resource for each switch. Set `unifabric.io/domain` to the
-   domain name of the switch. Set `role` to match the `Topology` resource,
-   `ScaleOut` or `Storage`:
+   domain name of the switch. Set `role` to the same value as the `Topology`
+   resource, `ScaleOut` or `Storage`:
 
    ```bash
    kubectl apply -f - <<'EOF'
@@ -65,14 +65,14 @@ domain. This step is optional.
    EOF
    ```
 
-> **Note:** In the Topograph scenarios, only Topograph writes the Node labels. A
-> label-only `Switch` resource takes no part in the topology computation and does
-> not change any Node label.
+> Note: In the Topograph scenarios, only Topograph writes the Node labels. A
+> label-only `Switch` resource takes no part in the topology computation. It
+> does not change any Node label.
 
 ## Verification
 
 ```bash
-kubectl get topologies.unifabric.io scaleout -o jsonpath='{range .status.domains[*]}{.name}{"\t"}{.members}{"\n"}{end}'
+kubectl get topologies.unifabric.io scaleout -o jsonpath='{range .status.domains[*]}{.name}{"\t"}{.switchMember}{"\n"}{end}'
 ```
 
 ```text
@@ -81,13 +81,14 @@ tier1-group1	["leaf1"]
 tier1-group2	[]
 ```
 
-When the switch name appears in `members` of the matching domain, refresh the
-Grafana topology dashboard. The switch member card shows the switch. See
-[Topology Visualization](./topology-visualization.md).
+When the switch name appears in `switchMember` of the matching domain, refresh
+the Grafana topology dashboard. The switch member card then shows the switch.
+See [Topology visualization](./topology-visualization.md).
 
 ## References
 
-- [Network Topology Discovery](./README.md): the NetQ and InfiniBand methods.
+- [NetQ import](./netq-import.md), [InfiniBand discovery](./infiniband-discovery.md):
+  the discovery methods that use this step.
 - [Switch reference](../../reference/switch.md): the fields of the `Switch`
   resource.
 - [Topology CRD design](../../design/topology-crd.md): the rules that fill

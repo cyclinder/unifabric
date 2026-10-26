@@ -1,18 +1,37 @@
-# switch-agent 接入
+# LLDP 发现
 
-English version: [switch-agent-onboarding.md](./switch-agent-onboarding.md)
+English version: [lldp-discovery.md](./lldp-discovery.md)
 
 ## 简介
 
-在 LLDP 发现中,每个节点上的 Unifabric Agent 发现节点到 leaf 交换机的连接。交换机之间
-的连接来自 Unifabric switch-agent。switch-agent 运行在每台交换机上,采集交换机的 LLDP
-邻居,并通过 `8090` 端口的 mTLS gRPC 提供给 Controller。本文说明如何在交换机上运行
+LLDP 是一种协议。设备用它向链路对端的设备通告自己的身份和端口。LLDP 发现由两部分
+组成:
+
+- 每个节点上的 Unifabric Agent 读取每张 RDMA 网卡的 LLDP 邻居,得到节点到 leaf
+  交换机的连接。
+- 每台交换机上的 Unifabric switch-agent 读取交换机的 LLDP 邻居,得到交换机之间的
+  连接,并通过 `8090` 端口的 mTLS gRPC 提供给 Controller。
+
+Controller 合并两者,计算出 leaf、spine、core 层级。本文说明如何在交换机上运行
 switch-agent,以及如何在 Kubernetes 中登记交换机。
 
-switch-agent 可以运行在 SONiC 交换机和运行 Cumulus Linux 的 NVIDIA Spectrum 交换机上。
-它也可以运行在其他提供 Docker 或 Linux shell 的以太网交换机上。如果不能在交换机上运行
-软件,改用[人为定义拓扑](./manual-topology.zh.md)。本方式的结果和限制,参见
-[网络拓扑发现](./README.zh.md#方式一lldp-发现switch-agent)。
+| 项目 | 说明 |
+| --- | --- |
+| 适用网络 | Scale-out 网络、Storage 网络 |
+| 拓扑来源 | 节点侧和交换机侧的 LLDP 邻居 |
+| 能发现的层级 | 节点、leaf、spine、core。全部层级。 |
+| 交换机侧要求 | 启用 LLDP。有 Docker 或 Linux shell 供 switch-agent 运行。SONiC 满足要求。 |
+| 集群侧要求 | 运行 `unifabric-controller` 的节点能访问交换机管理 IP 的 TCP `8090` 端口。 |
+| Helm 配置 | `topoDiscovery.scaleOut.mode=unifabric-roce` 或 `topoDiscovery.storage.mode=unifabric-roce`,两者都是默认值。Storage 网络还需要网卡 selector。参见[基础安装](../../getting-started.zh.md#安装)。 |
+
+如果安全策略不允许在交换机上运行软件,改用[自定义拓扑](./custom-topology.zh.md)。
+如果交换机 OS 没有 Docker 也没有 Linux shell,也改用它。
+
+> 注意: NVIDIA Spectrum 交换机运行的 Cumulus Linux 支持 LLDP 和 Docker。因此理论上
+> 可以在它们上运行 switch-agent,但尚未经过验证。
+
+各网络在不同网络设备下应选择哪种发现方式,参见
+[网络拓扑发现](./README.zh.md#按网络选择发现方式)。
 
 ## 前提条件
 
@@ -31,7 +50,7 @@ switch-agent 可以运行在 SONiC 交换机和运行 Cumulus Linux 的 NVIDIA S
 
 - 运行 `unifabric-controller` 的 Kubernetes Node 能访问每台交换机管理 IP 的 TCP `8090`
   端口。管理 IP 通常在带外管理网络。确认交换机的防火墙或 ACL 允许来自 Controller
-  节点的 `8090` 端口入站连接,并且 Controller 节点的防火墙允许到交换机的出站连接。
+  节点的 `8090` 端口入站连接。同时确认 Controller 节点的防火墙允许到交换机的出站连接。
 - 有一台配置好 `kubectl` 上下文的主机用于导出 mTLS 证书。
 
 ## 操作步骤
@@ -113,7 +132,7 @@ docker logs --tail 100 unifabric-switch-agent
 | 方式二:`hostProc` 模式容器 | 交换机运行 Docker,但交换机 OS 不暴露 `/run/lldpd.socket`,或 socket 权限阻止容器访问。 |
 | 方式三:systemd 服务 | 交换机无法运行 Docker 或其他容器运行时。 |
 
-#### 部署方式一:使用脚本批量部署多台交换机
+#### 部署方式一: 使用脚本批量部署多台交换机
 
 项目提供
 [deploy-switch-agent.sh](../../../tools/deploy-switch-agent/deploy-switch-agent.sh)。
@@ -189,7 +208,7 @@ docker logs --tail 100 unifabric-switch-agent
    <!-- TODO: 待真实环境采集输出 -->
    ```
 
-   > **注意:** SSH 密钥只认证登录。脚本仍会执行远程 `sudo` 来安装证书和操作 Docker。
+   > 注意: SSH 密钥只认证登录。脚本仍会执行远程 `sudo` 来安装证书和操作 Docker。
    > 如果远程用户有免密 sudo,不需要额外选项。如果 sudo 需要密码,加上
    > `SUDO_AUTH_MODE=password`。脚本会提示输入一次密码,终端隐藏输入。
 
@@ -209,7 +228,7 @@ docker logs --tail 100 unifabric-switch-agent
    <!-- TODO: 待真实环境采集输出 -->
    ```
 
-   > **注意:** 密码模式假设 SSH 密码同时是 sudo 密码。如果两者不同,运行前单独设置
+   > 注意: 密码模式假设 SSH 密码同时是 sudo 密码。如果两者不同,运行前单独设置
    > `SUDO_PASSWORD`。
 
    脚本接受以下环境变量:
@@ -241,7 +260,7 @@ docker logs --tail 100 unifabric-switch-agent
    <!-- TODO: 待真实环境采集输出 -->
    ```
 
-#### 部署方式二:以 hostProc 模式运行容器
+#### 部署方式二: 以 hostProc 模式运行容器
 
 `hostProc` 模式挂载宿主机 `/proc`,并用 `nsenter` 在宿主机的 mount 和 network
 命名空间中运行宿主机的 `lldpcli`。`nsenter` 是一个 Linux 工具,在另一个进程的命名
@@ -285,7 +304,7 @@ switch-agent 镜像内的 CLI 二进制。该模式不读取
    <!-- TODO: 待真实环境采集输出 -->
    ```
 
-   > **警告:** 容器以 `--privileged`、host network、host UTS 和宿主机 `/proc` 运行。
+   > 警告: 容器以 `--privileged`、host network、host UTS 和宿主机 `/proc` 运行。
    > 如果交换机 OS 能稳定暴露 `/run/lldpd.socket`,改用
    > [步骤 2](#步骤-2在交换机上运行-switch-agent) 中的默认部署。它的权限面更小。
 
@@ -300,7 +319,7 @@ switch-agent 镜像内的 CLI 二进制。该模式不读取
    <!-- TODO: 待真实环境采集输出 -->
    ```
 
-#### 部署方式三:安装为 systemd 服务
+#### 部署方式三: 安装为 systemd 服务
 
 交换机无法运行 Docker 或其他容器运行时的场景使用本方式。switch-agent 以原生 Linux
 二进制运行,由 systemd 管理。它直接调用交换机本地的 `lldpcli`,因此不挂载
@@ -380,7 +399,7 @@ switch-agent 镜像内的 CLI 二进制。该模式不读取
 
 ### 步骤 3:创建 Switch 资源
 
-agent 运行后,在有 `kubectl` 访问权限的主机上为每台物理交换机创建一个 Kubernetes
+agent 运行后,进入有 `kubectl` 访问权限的主机。为每台物理交换机创建一个 Kubernetes
 `Switch` 资源。Controller 连接 `spec.mgmtIP` 和 `spec.grpcPort` 读取 LLDP 快照。下面
 的 `192.0.2.0/24` 地址仅为示例。替换为各交换机真实的管理 IP:
 
@@ -406,12 +425,14 @@ spec:
 EOF
 ```
 
-对其余交换机重复。存储网络的交换机把 `role` 设为 `Storage`。
+其余交换机重复此操作。Storage 网络的交换机把 `role` 设为 `Storage`。
 
-> **注意:** `metadata.name` 不要求与交换机 hostname 相同。Controller 用
-> `Switch.status.hostname` 把交换机侧数据与节点 LLDP 发现的 hostname 关联。不要给
-> 同 role 的任何 `Switch` 添加 `unifabric.io/switch-neighbors` annotation。该 annotation
-> 会选择[人为定义拓扑](./manual-topology.zh.md)。
+> 注意: `metadata.name` 不要求与交换机 hostname 相同。
+
+> Controller 用 `Switch.status.hostname` 把交换机侧数据与节点 LLDP 发现的 hostname 关联。
+
+> 不要给同 role 的任何 `Switch` 添加 `unifabric.io/switch-neighbors` annotation。该
+> annotation 会选择[自定义拓扑](./custom-topology.zh.md)。
 
 ## 验证
 
@@ -430,8 +451,8 @@ leaf4    192.0.2.14   ScaleOut   true      3
 spine1   192.0.2.21   ScaleOut   true      4
 ```
 
-每个 `Switch` 的 `HEALTHY` 为 `true`,并且 `NEIGHBORS` 与该交换机真实的邻居数一致时,
-交换机侧接入完成。
+每个 `Switch` 都满足两个条件时,交换机侧完成。`HEALTHY` 为 `true`,并且 `NEIGHBORS`
+与该交换机真实的邻居数一致。
 
 最终结果是 Node label 和 `Topology` 资源。查看方法参见
 [网络拓扑发现](./README.zh.md#查看-topology-与-node-label)。
@@ -446,8 +467,8 @@ spine1   192.0.2.21   ScaleOut   true      4
 lldpcli -f json0 show neighbors
 ```
 
-如果命令失败,在交换机上安装 `lldpd` 和 `lldpcli`。如果命令在交互式 shell 中正常,但
-systemd 服务仍然失败,确认 service 文件的 `PATH` 行包含 `lldpcli` 所在目录。
+如果命令失败,在交换机上安装 `lldpd` 和 `lldpcli`。命令可能在交互式 shell 中正常,而
+systemd 服务仍然失败。这时,确认 service 文件的 `PATH` 行包含 `lldpcli` 所在目录。
 
 ### Switch.status.healthy 一直为 false
 
@@ -480,7 +501,7 @@ systemd 服务仍然失败,确认 service 文件的 `PATH` 行包含 `lldpcli` �
 ## 参考
 
 - [网络拓扑发现](./README.zh.md):发现方式与结果查看。
-- [人为定义拓扑](./manual-topology.zh.md):不运行 switch-agent,改为声明交换机邻居。
+- [自定义拓扑](./custom-topology.zh.md):不运行 switch-agent,改为声明交换机邻居。
 - [Switch 参考](../../reference/switch.zh.md):`Switch` 资源的 `spec` 与 `status`
   字段。
 - [Scale-out 拓扑设计](../../design/scaleout-topology.zh.md):Controller 如何使用

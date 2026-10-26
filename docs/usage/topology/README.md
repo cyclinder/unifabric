@@ -4,272 +4,182 @@
 
 ## Introduction
 
-An AI cluster depends on three high-speed networks:
+Unifabric network topology discovery detects the links between hosts and switches, and between switches, in an AI cluster.
+It writes the result as Kubernetes resources.
+The scheduler uses them for topology-aware scheduling, and operators use them to see the global topology.
 
-- The scale-out network carries GPU traffic between nodes.
-- The scale-up network connects the GPUs inside one node.
-- The storage network carries traffic to high-speed storage.
+Topology discovery supports these network types:
 
-A group of training or inference AI workloads needs topology-aware placement on
-these networks. If the scheduler spreads their Pods across random nodes of the
-cluster, their traffic crosses the spine tier or the core tier. This adds network
-latency, and the traffic of other jobs interferes. For example, in
-prefill-decode disaggregated inference, the Prefill instances and the Decode
-instances transfer the KV cache between them. If both are under the same leaf
-switch, the transfer takes one hop. If they are in different spine domains, the
-transfer takes two or more extra hops.
+- Scale-out network: It carries GPU traffic between nodes and uses a leaf-spine architecture.
+- Storage network: It carries traffic from the nodes to high-speed storage.
+- Scale-up network: It is the high-speed interconnect between GPUs, for example NVIDIA NVLink.
 
-Kueue, Volcano, and KAI Scheduler all support topology-aware placement, but they
-do not see the physical network. They read only the topology labels on the Nodes.
-For the scheduler to work, somebody must record the position of each node in the
-network as a label on the Node object. This meets two problems:
+Topology discovery covers this scope:
 
-- The topology labels have no reliable source.
+- The topology tier of each host: the leaf switch that the host connects to, and the spine domain that it is in.
+- The topology tier of the leaf and spine switches: the uplinks and downlinks between the switches.
 
-  The physical links are spread across the switches, the NICs, and the management
-  platforms of many vendors. The tools of each vendor do not talk to each other,
-  and none of them connect to Kubernetes. In a cluster with hundreds of nodes,
-  manual labeling of each node is slow and easy to get wrong. After a switch is
-  added or a cable is moved, the labels do not follow, and they no longer match
-  the real topology.
-- Operators have no global map of the network topology.
+Topology discovery writes the result as two types of resources:
 
-  No single place shows the full set of links between the nodes, the leaf
-  switches, the spine switches, and the core switches. When a training job slows
-  down or a link reports an error, operators first have to piece the picture
-  together from the switches, the NICs, and the vendor platforms: which nodes
-  share a leaf, and which jobs a link carries. Only then can they look for the
-  fault. In a cluster with hundreds of nodes and tens of switches, this step
-  alone takes a long time.
+- Tiered Node labels. They record the switch domain of each node, and the scheduler consumes them directly. When the physical topology changes, the labels update automatically.
+- `Switch` and `Topology` resources. Each switch becomes a `Switch` resource, and each network becomes a `Topology` resource. Grafana can render them as a real-time global topology map.
 
-Network topology discovery detects the links between hosts and switches and
-between switches in these three networks. It writes the result as two standard
-Kubernetes resources, one for each problem:
-
-- Tiered Node labels.
-
-  Unifabric discovers the leaf, spine, and core domain of each node in real time
-  and writes them as Node labels. The scheduler consumes them directly and places
-  the Pods of one job in the same switch domain. When the physical topology
-  changes, the labels update.
-- The `Topology` resource.
-
-  Each switch becomes a `Switch` resource, and each of the three networks becomes
-  a `Topology` resource that shows its performance domains and the path of each
-  node. Grafana renders them as one global topology map in real time. When a
-  switch or a link fails, operators see on the map which nodes and which jobs it
-  affects, and then go to the fault.
-
-Whether the devices are SONiC, NVIDIA Spectrum, or InfiniBand, the result uses
-the same label model and the same `Topology` resource. The scheduler
-configuration and the operations procedures do not change with the vendor.
-
-The scope of topology discovery is:
-
-| Topology relation | Compute fabric (scale-out) | Storage fabric | NVLink fabric (scale-up) |
-| --- | --- | --- | --- |
-| Tier of each host (which leaf domain it is in) | Yes | Yes | Yes (which NVLink domain it is in) |
-| Tier of each leaf, spine, and core switch | Yes | Yes | Not applicable |
+The network devices can be SONiC switches, NVIDIA Spectrum switches, or InfiniBand.
+For all of them, the result uses the same label model and the same `Topology` resource.
 
 In this document you learn:
 
-- Which fabrics, discovery methods, and network devices topology discovery
-  supports.
-- How to complete topology discovery with each of the four discovery methods.
-- How to view the result: Node labels, the `Topology` resource, and the Grafana
-  topology graph.
-- How schedulers such as Kueue, Volcano, and KAI Scheduler consume the labels.
+- Which discovery method each network uses on each network device, and whether Unifabric supports it now.
+- How each discovery method works, and what it requires from the network devices and the cluster.
+- How to view the result: Node labels, the `Topology` resource, and the Grafana topology map.
+- How schedulers such as Kueue, Volcano, and KAI Scheduler consume these labels.
 
-## Supported Scope
+## Background
 
-Each fabric has its own discovery mode in the Helm values. The three fabrics are
-independent. For example, the compute fabric can use InfiniBand discovery while
-the storage fabric uses LLDP discovery.
+One node has a limited number of GPUs and limited GPU memory, usually 8 GPUs.
+Most training jobs and inference jobs cannot complete in one node.
+Their Pods must run on many nodes:
 
-| Fabric | Helm value | Discovery methods |
-| --- | --- | --- |
-| Compute (scale-out) | `topoDiscovery.scaleOut.mode` | `unifabric-roce`: LLDP discovery (Method 1) or manual topology (Method 4). `nv-topograph`: NetQ import (Method 2) or InfiniBand (Method 3). |
-| Storage | `topoDiscovery.storage.mode` | `unifabric-roce`: LLDP discovery (Method 1) or manual topology (Method 4). |
-| NVLink (scale-up) | `topoDiscovery.scaleUp.mode` | `nv-topograph`: NVIDIA Topograph reads the NVLink domain from the GPU Operator (Method 3) or from NVIDIA NMX through NetQ (Method 2). `manual`: an administrator writes the labels. |
+- Training jobs: The parameters, gradients, and optimizer states of a large model are much larger than the GPU memory of one node. A training job uses data parallelism, tensor parallelism, pipeline parallelism, and other methods. These methods split the model and the data across tens to thousands of GPUs.
+- Inference jobs: The weights of a large model alone can be larger than the GPU memory of one node, so the model must run across nodes. In prefill-decode (PD) disaggregation, the Prefill stage is compute-intensive and the Decode stage is memory-bandwidth-intensive. If both run on the same node, they compete for GPU resources. Each one then gets higher latency and lower throughput. For this reason, the Prefill instances and the Decode instances usually run on different nodes and scale independently.
 
-The network devices that each method supports:
+The GPU traffic between these Pods goes through the Scale-out network.
+If two Pods connect to the same leaf switch, their traffic goes through only that switch.
+If they connect to different leaf switches, their traffic goes through the spine.
+The path is longer, the latency is higher, and the traffic of other jobs interferes on the upper links.
+For this reason, such jobs need topology-aware scheduling.
+The scheduler puts the Pods of one job in the same leaf domain or spine domain when possible.
 
-| Method | Switches | Required on the switch | Required from the cluster |
-| --- | --- | --- | --- |
-| Method 1: LLDP discovery with switch-agent | SONiC switches and NVIDIA Spectrum switches that run Cumulus Linux. Other Ethernet switches that run Docker or a Linux binary. | LLDP enabled. Docker or a Linux shell for switch-agent. | The Controller reaches TCP port `8090` on the switch management IP. |
-| Method 2: NetQ import | NVIDIA Spectrum-X switches that NetQ manages. | NetQ manages the fabric. | The Topograph Pod reaches the NetQ API. |
-| Method 3: InfiniBand | NVIDIA Quantum InfiniBand switches. | A Subnet Manager runs. | `ibnetdiscover` runs on a GPU node. |
-| Method 4: Manual topology | Any Ethernet switch that sends LLDP. The switch OS does not matter. | LLDP enabled. Nothing else. | None. |
+Kueue, Volcano, and KAI Scheduler all support topology-aware scheduling, but they do not see the physical network.
+They read only the topology labels on the Nodes.
+For the scheduler to work, a mechanism must record the network position of each node as a label on the Node object.
 
-If a switch sends no LLDP, the nodes see no neighbor. Unifabric then cannot
-discover any switch, and the Node has no topology labels for that fabric.
+This causes two problems:
+
+- The topology labels have no reliable source.
+
+  The physical links are spread across the switches, the NICs, and the network management platforms of many vendors.
+  The tools of each vendor do not work together, and they do not connect to Kubernetes.
+  In a cluster with hundreds of nodes, manual labeling of each node is slow and easy to get wrong.
+  After you add switches or move cables, the labels do not change, and they no longer match the real topology.
+
+- Operators have no global map of the network topology.
+
+  No single place shows all links between the nodes, the leaf switches, and the spine switches.
+  A training job can slow down, or a link can report errors.
+  Then operators must first collect the data from the switches, the NICs, and the vendor platforms.
+  They find which nodes connect to the same leaf, and which jobs each link carries.
+  Only then can they look for the fault.
+  In a cluster with hundreds of nodes and tens of switches, this step alone takes a long time.
+
+Network topology discovery solves these two problems:
+
+- Tiered Node labels give the scheduler an accurate, real-time topology.
+
+- The `Topology` resource and the Grafana topology map show operators the affected nodes and jobs when a fault occurs.
 
 ## Prerequisites
 
-- Unifabric is deployed according to the [basic installation](../../getting-started.md).
-  The `topoDiscovery.*.mode` values for your fabrics are set according to its
-  "Other Network Environments" section.
-- In `kubectl get fabricnodes`, every node shows `READY` as `True`, and the NIC
-  classification is correct. The verification section of the basic installation
-  covers this step.
-- The network path from the cluster to the devices is open. Method 1 needs the
-  node that runs `unifabric-controller` to reach the switch management IPs,
-  usually on the out-of-band management network. Method 2 needs the node that
-  runs the Topograph Pod to reach the NetQ API. Make sure that the firewall of
-  the switch and of the cluster allows this path.
-- Only for topology visualization: Grafana Operator and its CRDs are installed in
-  the cluster.
+- You deployed Unifabric according to the [basic installation](../../getting-started.md).
+- In `kubectl get fabricnodes`, every node shows `READY` as `True`, and the NIC classification is correct. The verification section of the basic installation covers this step.
+- Only for topology visualization: Grafana Operator and its CRDs are installed in the cluster.
 
-## Discovery Methods
+For the other requirements of each discovery method on the network devices and the cluster, see the related section in [Discovery methods](#discovery-methods).
 
-Select the method for each fabric from the tables in
-[Supported Scope](#supported-scope). The methods differ only in where the
-topology comes from. The result is the same, and you examine it in
-[Verification](#verification).
+## Choose a discovery method by network
 
-### Method 1: LLDP Discovery with switch-agent
+The three networks are independent.
+Each network has its own discovery mode in the Helm values.
+One cluster can use different discovery methods together.
+For example, the Scale-out network uses InfiniBand discovery, and the Storage network uses LLDP discovery.
 
-LLDP is a protocol with which a device announces its identity and its port to the
-device at the other end of a link. The Unifabric Agent on each node reads the LLDP
-neighbor of each RDMA NIC. This gives the links from the nodes to the leaf
-switches. The Unifabric switch-agent on each switch reads the LLDP neighbors of
-the switch. This gives the links between the switches. The Controller combines
-both and computes the leaf, spine, and core tiers.
+> Note: If you set both the Scale-out network and the Scale-up network to `nv-topograph`, they share one NVIDIA Topograph instance and one provider (`nvidiaTopograph.provider.name`).
 
-| Item | Description |
+Find your network device in the table for each network to get the discovery method.
+Then read the requirements and the configuration in [Discovery methods](#discovery-methods).
+
+The values in the "Support status" column have these meanings:
+
+| Support status | Meaning |
 | --- | --- |
-| Fabrics | Compute, storage |
-| Topology source | LLDP neighbors on the nodes and on the switches |
-| Tiers discovered | Node, leaf, spine, core. All tiers. |
-| Helm configuration | `topoDiscovery.scaleOut.mode=unifabric-roce` (the default) or `topoDiscovery.storage.mode=unifabric-roce`. The storage fabric also needs a NIC selector. See the [basic installation](../../getting-started.md#installation). |
+| Supported | Unifabric implements it. |
+| Not verified | Unifabric implements it, but it was not tested on this network device. |
+| Not supported yet | A topology data source exists and it is technically possible, but Unifabric does not implement it yet. |
+| Not supported | No topology data source exists, so automatic discovery is not possible. |
+| Not applicable | No topology discovery is necessary. |
 
-Use this method when you can run a container or a binary on the switches. SONiC
-and Cumulus Linux both support this. If a security policy forbids it, or the
-switch OS has no Docker and no Linux shell, use Method 4 instead.
+### Scale-out network
 
-Limitations:
+| Network device | Discovery method | Helm configuration | Support status |
+| --- | --- | --- | --- |
+| Ethernet RoCE switch that runs SONiC and can run switch-agent | [LLDP discovery](./lldp-discovery.md) | `topoDiscovery.scaleOut.mode=unifabric-roce` (default) | Supported |
+| NVIDIA Spectrum-X switch that NetQ manages | [NetQ import](./netq-import.md) | `topoDiscovery.scaleOut.mode=nv-topograph`, `nvidiaTopograph.provider.name=netq` | Supported |
+| NVIDIA Spectrum-X switch without NetQ | [LLDP discovery](./lldp-discovery.md) | `topoDiscovery.scaleOut.mode=unifabric-roce` | Not verified |
+| NVIDIA InfiniBand switch | [InfiniBand discovery](./infiniband-discovery.md) | `topoDiscovery.scaleOut.mode=nv-topograph`, `nvidiaTopograph.provider.name=infiniband-k8s` (default) | Supported |
+| Ethernet switch that sends LLDP on the ports to the nodes, but cannot run switch-agent | [Custom topology](./custom-topology.md) | `topoDiscovery.scaleOut.mode=unifabric-roce` | Supported |
+| Ethernet switch that does not send LLDP on the ports to the nodes | None | None | Not supported |
 
-- This method has no source for the NVLink fabric. Keep
-  `topoDiscovery.scaleUp.mode` at `manual`.
+### Storage network
 
-#### Configuration
+| Network device | Discovery method | Helm configuration | Support status |
+| --- | --- | --- | --- |
+| Ethernet RoCE switch that runs SONiC and can run switch-agent | [LLDP discovery](./lldp-discovery.md) | `topoDiscovery.storage.mode=unifabric-roce` (default), and a selector for the storage NICs | Supported |
+| NVIDIA Spectrum-X switch that NetQ manages | Unifabric cannot yet identify the Storage network in the topology from NetQ import. Use [LLDP discovery](./lldp-discovery.md) (not verified) or [Custom topology](./custom-topology.md) instead. | `topoDiscovery.storage.mode=unifabric-roce` | Not supported yet |
+| NVIDIA Spectrum-X switch without NetQ | [LLDP discovery](./lldp-discovery.md) | `topoDiscovery.storage.mode=unifabric-roce` | Not verified |
+| NVIDIA InfiniBand switch | Unifabric cannot yet identify the Storage network in the topology from [InfiniBand discovery](./infiniband-discovery.md). InfiniBand NICs receive no LLDP, so the nodes cannot find their leaf. For this reason, LLDP discovery and Custom topology do not work. | None | Not supported yet |
+| Ethernet switch that sends LLDP on the ports to the nodes, but cannot run switch-agent | [Custom topology](./custom-topology.md) | `topoDiscovery.storage.mode=unifabric-roce` | Supported |
+| Ethernet switch that does not send LLDP on the ports to the nodes | None | None | Not supported |
 
-Export the mTLS certificates, run switch-agent on every switch, and create one
-`Switch` resource per switch. See
-[switch-agent onboarding](./switch-agent-onboarding.md).
+### Scale-up network
 
-### Method 2: NetQ Import
+The Scale-up network is the high-speed interconnect between GPUs, for example NVIDIA NVLink.
+Its hardware is the GPU interconnect itself.
+It does not depend on the switches of the Scale-out network and the Storage network.
 
-Spectrum-X is the NVIDIA Ethernet RoCE network platform for AI clusters. NVIDIA
-NetQ manages its fabric and already knows the full topology. Unifabric imports the
-topology from NetQ through NVIDIA Topograph. Topograph is an open-source NVIDIA
-service that reads the network topology from vendor data sources and writes Node
-labels.
+Only a multi-node NVLink system needs Scale-up topology discovery.
+For example, GB200 NVL72 uses NVLink Switches to connect the 72 GPUs in one rack into one NVLink domain.
+This domain spans many Kubernetes nodes.
+In a single-node NVLink system, such as HGX with 8 GPUs, one node is one NVLink domain, and no discovery is necessary.
 
-| Item | Description |
-| --- | --- |
-| Fabrics | Compute. NVLink when NVIDIA NMX is available through NetQ. |
-| Topology source | NVIDIA Topograph reads the fabric topology through the NetQ API. For the NVLink fabric it reads the NVLink domains from NMX. |
-| Tiers discovered | The fabric data in NetQ decides. Usually leaf, spine, and all tiers above. |
-| Helm configuration | `topoDiscovery.scaleOut.mode=nv-topograph`, `nvidiaTopograph.provider.name=netq`, and the NetQ credentials. Add `topoDiscovery.scaleUp.mode=nv-topograph` for the NVLink fabric. See the [basic installation](../../getting-started.md#spectrum-x-fabric). |
+| GPU interconnect | Discovery method | Helm configuration | Support status |
+| --- | --- | --- | --- |
+| Single-node NVLink, for example HGX with 8 GPUs | Not necessary | `topoDiscovery.scaleUp.mode=manual` (default) | Not applicable |
+| Multi-node NVLink, and NetQ manages the NVLink domain | [NetQ import](./netq-import.md) | `topoDiscovery.scaleUp.mode=nv-topograph`, `nvidiaTopograph.provider.name=netq` | Supported |
+| Multi-node NVLink, and the Scale-out network is InfiniBand | [InfiniBand discovery](./infiniband-discovery.md). It reads the `nvidia.com/gpu.clique` label of the GPU Operator. | `topoDiscovery.scaleUp.mode=nv-topograph`, `nvidiaTopograph.provider.name=infiniband-k8s` | Supported |
+| Multi-node NVLink without NetQ, and the Scale-out network is not InfiniBand | An administrator writes the labels | `topoDiscovery.scaleUp.mode=manual` | Not supported yet |
+| GPU interconnect that is not from NVIDIA | An administrator writes the labels | `topoDiscovery.scaleUp.mode=manual` | Not supported yet |
 
-Limitations:
+## Discovery methods
 
-- This method creates no `Switch` resources. The `Topology` resource and the Node
-  labels are complete, but in topology visualization the switch member card of
-  each performance domain is empty.
-- This method does not cover the storage fabric. If the storage fabric runs on
-  Spectrum switches, use Method 1 or Method 4 for it.
+The methods differ only in the topology source.
+The result is the same, and you view it in [Verification](#verification).
+For the principle, the requirements, the limits, and the configuration steps of each method, see its document.
 
-> **Note:** Spectrum switches run Cumulus Linux, which supports LLDP and Docker.
-> If NetQ is not available, you can use Method 1 on Spectrum switches instead.
-
-#### Configuration
-
-The Node labels and the `Topology` resource appear after the basic installation.
-No more steps are needed. If you want topology visualization to show the
-switches, see
-[Add Switch Resources for Topograph Scenarios](./topograph-switch-resources.md).
-
-### Method 3: InfiniBand
-
-InfiniBand is a high-speed interconnect that is independent of Ethernet. A Subnet
-Manager keeps the topology of the whole fabric. Unifabric uses the
-`infiniband-k8s` provider of NVIDIA Topograph. Topograph runs `ibnetdiscover` in
-a Pod on a GPU node to read the full fabric topology. For the NVLink fabric, it
-reads the `nvidia.com/gpu.clique` label that the GPU Operator writes on each
-node.
-
-| Item | Description |
-| --- | --- |
-| Fabrics | Compute, NVLink |
-| Topology source | `ibnetdiscover` for the compute fabric. The GPU Operator clique label for the NVLink fabric. |
-| Tiers discovered | Compute: leaf, spine, core. NVLink: tier 1, the NVLink domain. |
-| Helm configuration | `topoDiscovery.scaleOut.mode=nv-topograph` and `topoDiscovery.scaleUp.mode=nv-topograph`. See the [basic installation](../../getting-started.md#infiniband-fabric). |
-
-The compute label value is a name derived from the GUID of the InfiniBand switch,
-for example `S-fc6a1c03006636c0`.
-
-Limitations:
-
-- As in Method 2, this method creates no `Switch` resources, and the switch member
-  cards in topology visualization are empty.
-- This method does not cover the storage fabric. If the storage fabric is RoCE,
-  use Method 1 or Method 4 for it.
-- The `infiniband-k8s` provider needs `ibnetdiscover` to succeed. It cannot
-  produce the NVLink domains alone on a cluster without InfiniBand.
-
-#### Configuration
-
-The same as Method 2: no more steps are needed. If you want topology
-visualization to show the switches, see
-[Add Switch Resources for Topograph Scenarios](./topograph-switch-resources.md).
-
-### Method 4: Manual Topology
-
-In this method, you deploy nothing on the switches. The Unifabric Agent on each
-node still reads the LLDP neighbor of each RDMA NIC, so the links from the nodes
-to the leaf switches are discovered automatically. For the links above the leaf,
-you create a `Switch` resource for each spine and core switch and declare its
-neighbors in an annotation. The Controller combines the discovered leaf tier with
-the declared upper tiers.
-
-| Item | Description |
-| --- | --- |
-| Fabrics | Compute, storage |
-| Topology source | LLDP neighbors on the nodes, plus neighbor declarations on `Switch` resources |
-| Tiers discovered | Leaf automatically. Spine and core from the declaration. |
-| Helm configuration | The same as Method 1: `topoDiscovery.scaleOut.mode=unifabric-roce` or `topoDiscovery.storage.mode=unifabric-roce`. |
-
-Use this method when a security policy forbids software on the switches, when
-another team manages the switches, or when the switch OS cannot run switch-agent.
-The switch only has to send LLDP.
-
-Limitations:
-
-- The declared links do not update when the physical links change. After you add
-  a switch or move a cable, update the declaration.
-- The leaf tier still comes from LLDP. If the switches send no LLDP, this method
-  does not work.
-- This method has no source for the NVLink fabric.
-
-#### Configuration
-
-Create the `Switch` resources for the spine and core switches with the
-`unifabric.io/switch-neighbors` annotation. See
-[Manual topology](./manual-topology.md).
+| Discovery method | Applicable networks | Principle |
+| --- | --- | --- |
+| [LLDP discovery](./lldp-discovery.md) | Scale-out, Storage | The nodes read the LLDP neighbors of their NICs. The switch-agent on each switch reads the LLDP neighbors of the switch. The Controller combines both to calculate the tiers. |
+| [Custom topology](./custom-topology.md) | Scale-out, Storage | Node-side LLDP discovers the leaf. Neighbor declarations on `Switch` resources give the spine and the tiers above it. No software runs on the switches. |
+| [NetQ import](./netq-import.md) | Scale-out, Storage, Scale-up | NVIDIA Topograph reads the fabric topology and the NVLink domains through the NetQ API. |
+| [InfiniBand discovery](./infiniband-discovery.md) | Scale-out, Storage | NVIDIA Topograph runs `ibnetdiscover` on a GPU node to read the topology of the IB subnet. |
 
 ## Verification
 
-### View Topology and Node Labels
+### View Topology and Node labels
 
-This section uses a cluster as the example. The compute fabric is SONiC RoCE.
-`node1` and `node2` connect to both `leaf1` and `leaf2`. `node3` and `node4`
-connect to both `leaf3` and `leaf4`. The four leaf switches connect to `spine1`:
+This section uses one cluster as the example.
+The three networks have these links:
 
-![Example SONiC RoCE topology](../../images/sonic-roce-topology-example.jpg)
+- The Scale-out network is SONiC RoCE. `node1` and `node2` connect to both `leaf1` and `leaf2`. `node3` and `node4` connect to both `leaf3` and `leaf4`. All four leaf switches connect to `spine1`.
+- The Storage network has only one leaf tier. `node1` and `node2` connect to `storage-leaf1`. `node3` and `node4` connect to `storage-leaf2`.
+- The Scale-up network has two NVLink domains. `node1` and `node2` are in one domain. `node3` and `node4` are in the other domain.
 
-After discovery completes, view the compute fabric labels:
+![Example topology of the three networks](../../images/topology-example-all-fabrics.png)
+
+The NVLink domain names in the figure are short forms.
+The full format is `ClusterUUID.CliqueId`.
+See the example of the `scaleup` resource below.
+
+After discovery completes, view the labels of the Scale-out network:
 
 ```bash
 kubectl get nodes \
@@ -284,13 +194,13 @@ node3   Ready    <none>   30d   v1.32.0   tier1-group2                    tier2-
 node4   Ready    <none>   30d   v1.32.0   tier1-group2                    tier2-group1
 ```
 
-`node1` and `node2` have the same `tier-1` value, so they are in the same leaf
-domain. All four nodes have the same `tier-2` value, so they share one spine
-domain. If a node has `tier-1` but no `tier-2`, the tiers above the leaf were not
-discovered. See [Troubleshooting](#troubleshooting).
+`node1` and `node2` have the same `tier-1` value, so they are in the same leaf domain.
+All four nodes have the same `tier-2` value, so they share one spine domain.
+If a node has `tier-1` but no `tier-2`, Unifabric did not discover the tiers above the leaf.
+See [Troubleshooting](#troubleshooting).
 
-The storage fabric and the NVLink fabric use the same model with their own label
-prefixes. In the example, the storage fabric has one leaf tier:
+The Storage network and the Scale-up network use the same model, and each has its own label prefix.
+In the example, the Storage network has only one leaf tier:
 
 ```bash
 kubectl get nodes -L storage.unifabric.io/tier-1
@@ -304,41 +214,37 @@ node3   Ready    <none>   30d   v1.32.0   tier1-group2
 node4   Ready    <none>   30d   v1.32.0   tier1-group2
 ```
 
-For the NVLink fabric, run `kubectl get nodes -L scale-up.unifabric.io/tier-1`.
-The value is the NVLink domain ID that Topograph derives from the GPU Operator
-clique label or from NMX. Nodes with the same value share one NVLink domain.
+For the Scale-up network, run `kubectl get nodes -L scale-up.unifabric.io/tier-1`.
+The value is the NVLink domain ID.
+Topograph gets it from the GPU Operator clique label or from NetQ.
+Nodes with the same value share one NVLink domain.
 
-The label model for all three fabrics:
+The label model of the three networks:
 
 | Node label | Meaning |
 | --- | --- |
-| `scale-out.unifabric.io/tier-1` | The compute leaf switch domain that the node connects to |
-| `scale-out.unifabric.io/tier-2` | The compute spine domain above the leaf |
-| `scale-out.unifabric.io/tier-3` | The compute core domain above the spine |
-| `storage.unifabric.io/tier-N` | The matching tier of the storage fabric. The rules are the same as for compute. |
-| `scale-up.unifabric.io/tier-1` | The NVLink domain inside the node |
+| `scale-out.unifabric.io/tier-1` | The leaf switch domain of the Scale-out network that the node connects to directly |
+| `scale-out.unifabric.io/tier-2` | The spine domain of the Scale-out network above the leaf |
+| `scale-out.unifabric.io/tier-3` | The core domain of the Scale-out network above the spine |
+| `storage.unifabric.io/tier-N` | The matching tier of the Storage network. The rules are the same as for the Scale-out network. |
+| `scale-up.unifabric.io/tier-1` | The NVLink domain that the node is in |
 
-A higher tier number means a tier closer to the top of the network. When two nodes
-have the same value for a label, they are in the same performance domain. LLDP
-discovery names the domains `tier<N>-group<M>`. Topograph uses its own names, for
-example `S-fc6a1c03006636c0` for an InfiniBand switch.
+A higher tier number means a tier closer to the top of the network.
+When two nodes have the same value for a label, they are in the same performance domain.
+LLDP discovery names the domains `tier<N>-group<M>`.
+Topograph uses its own names, for example `S-fc6a1c03006636c0` for an InfiniBand switch.
 
-The Helm value `topoDiscovery.<fabric>.nodeLabel.keyTemplate` defines the label
-key. The defaults are `scale-out.unifabric.io/tier-{{ .Tier }}`,
-`storage.unifabric.io/tier-{{ .Tier }}`, and
-`scale-up.unifabric.io/tier-{{ .Tier }}`. You can change the template, but it
-must contain exactly one `{{ .Tier }}`.
+The Helm value `topoDiscovery.<fabric>.nodeLabel.keyTemplate` defines the label key.
+The defaults are `scale-out.unifabric.io/tier-{{ .Tier }}`, `storage.unifabric.io/tier-{{ .Tier }}`, and `scale-up.unifabric.io/tier-{{ .Tier }}`.
+You can change the template, but it must contain exactly one `{{ .Tier }}`.
 
-> **Note:** If you change the key template, change the label keys in the scheduler
-> configuration too. Otherwise the scheduler reads no topology information.
+> Note: If you change the key template, change the label keys in the scheduler configuration too. If you do not, the scheduler reads no topology information.
 
-Each fabric has one `Topology` resource: `scaleout`, `storage`, and `scaleup`. It
-summarizes the hierarchy of the performance domains and the domain path of each
-node:
+Each network has one `Topology` resource: `scaleout`, `storage`, and `scaleup`.
+It summarizes the hierarchy of the performance domains and the domain path of each node:
 
 ```bash
 kubectl get topologies.unifabric.io
-kubectl get topologies.unifabric.io scaleout -o yaml
 ```
 
 ```text
@@ -348,6 +254,19 @@ scaleup    30d
 storage    30d
 ```
 
+In `status.domains`, `switchMember` lists the switches in a domain.
+`parent` points to the domain one tier above.
+The domain at the highest tier has no `parent`.
+In `status.nodes`, each group of nodes shares one domain path `switchDomainPath`, from top to bottom.
+`name` is the stable identifier of the group.
+For the full field description, see the [Topology reference](../../reference/topology.md).
+
+The Scale-out network. The example has two tiers, leaf and spine:
+
+```bash
+kubectl get topologies.unifabric.io scaleout -o yaml
+```
+
 ```yaml
 apiVersion: unifabric.io/v1beta1
 kind: Topology
@@ -355,81 +274,147 @@ metadata:
   name: scaleout
 status:
   domains:
-    - members:
+    - name: tier2-group1
+      switchMember:
         - spine1
-      name: tier2-group1
       tier: 2
-    - members:
+    - name: tier1-group1
+      parent: tier2-group1
+      switchMember:
         - leaf1
         - leaf2
-      name: tier1-group1
-      parent: tier2-group1
       tier: 1
-    - members:
+    - name: tier1-group2
+      parent: tier2-group1
+      switchMember:
         - leaf3
         - leaf4
-      name: tier1-group2
-      parent: tier2-group1
       tier: 1
   nodes:
-    - domainPath:
-        - tier2-group1
-        - tier1-group1
+    - name: node-group1
       nodes:
         - node1
         - node2
-    - domainPath:
+      switchDomainPath:
         - tier2-group1
-        - tier1-group2
+        - tier1-group1
+    - name: node-group2
       nodes:
         - node3
         - node4
+      switchDomainPath:
+        - tier2-group1
+        - tier1-group2
 ```
 
-In `status.domains`, `members` lists the switches in a domain, and `parent` points
-to the domain one tier above. In `status.nodes`, each group of nodes shares one
-domain path from top to bottom. The `storage` resource has the same shape. The
-`scaleup` resource has only tier 1 domains and no switch members. For the full
-field description, see the [Topology reference](../../reference/topology.md).
+The Storage network. The example has only one leaf tier.
+Tier 1 is the highest tier, so the domains have no `parent`:
 
-#### Use the Node Labels in a Scheduler
+```bash
+kubectl get topologies.unifabric.io storage -o yaml
+```
+
+```yaml
+apiVersion: unifabric.io/v1beta1
+kind: Topology
+metadata:
+  name: storage
+status:
+  domains:
+    - name: tier1-group1
+      switchMember:
+        - storage-leaf1
+      tier: 1
+    - name: tier1-group2
+      switchMember:
+        - storage-leaf2
+      tier: 1
+  nodes:
+    - name: node-group1
+      nodes:
+        - node1
+        - node2
+      switchDomainPath:
+        - tier1-group1
+    - name: node-group2
+      nodes:
+        - node3
+        - node4
+      switchDomainPath:
+        - tier1-group2
+```
+
+The Scale-up network. It has only tier 1, which is the NVLink domain.
+The domain name is the value of the `scale-up.unifabric.io/tier-1` label.
+When Topograph writes it, the format is `ClusterUUID.CliqueId`.
+The Scale-up network has no `Switch` resources, so it has no `switchMember`:
+
+```bash
+kubectl get topologies.unifabric.io scaleup -o yaml
+```
+
+```yaml
+apiVersion: unifabric.io/v1beta1
+kind: Topology
+metadata:
+  name: scaleup
+status:
+  domains:
+    - name: 7b968a6d-c8aa-45e1-9e07-e1e51be99c31.1
+      tier: 1
+    - name: 7b968a6d-c8aa-45e1-9e07-e1e51be99c31.2
+      tier: 1
+  nodes:
+    - name: node-group1
+      nodes:
+        - node1
+        - node2
+      switchDomainPath:
+        - 7b968a6d-c8aa-45e1-9e07-e1e51be99c31.1
+    - name: node-group2
+      nodes:
+        - node3
+        - node4
+      switchDomainPath:
+        - 7b968a6d-c8aa-45e1-9e07-e1e51be99c31.2
+```
+
+#### Use the Node labels in a scheduler
 
 A topology-aware scheduler arranges the Node labels into tiers from top to bottom.
-It then places the Pods of one job tier by tier. The table maps the Unifabric
-labels to the configuration entry of each scheduler. For the installation and
-configuration of the scheduler itself, follow its official documentation:
+It then places the Pods of one job tier by tier.
+The table maps the Unifabric labels to the configuration entry of each scheduler.
+For the installation and configuration of the scheduler itself, follow its official documentation:
 
 | Scheduler | Configuration entry | Unifabric labels to fill in |
 | --- | --- | --- |
 | Kueue Topology Aware Scheduling | `spec.levels` of the `Topology` resource | From top to bottom: `scale-out.unifabric.io/tier-3`, `tier-2`, `tier-1`, then `kubernetes.io/hostname` |
-| Volcano network topology aware scheduling | The `HyperNode` resource | Create one HyperNode per tier. The member selector references the matching label. |
+| Volcano network topology aware scheduling | The `HyperNode` resource | Create one HyperNode for each tier. The member selector refers to the matching label. |
 | KAI Scheduler topology aware scheduling | `spec.levels` of the `Topology` resource | The same as Kueue |
 
 References: [Kueue TAS](https://kueue.sigs.k8s.io/docs/concepts/topology_aware_scheduling/),
 [Volcano network topology](https://volcano.sh/en/docs/network_topology_aware_scheduling/),
 [KAI Scheduler](https://github.com/NVIDIA/KAI-Scheduler).
 
-### View Topology Visualization
+### View topology visualization
 
-The Grafana topology dashboard renders each `Topology` resource as an interactive
-graph. The graph matches the Node labels above. Each tier 1 domain is a leaf group.
-Each tier 2 domain is a spine group above the leaf groups. Each node hangs under
-its leaf group.
+The Grafana topology dashboard renders each `Topology` resource as an interactive graph.
+The graph matches the Node labels above.
+Each tier 1 domain is a leaf group.
+Each tier 2 domain is a spine group above the leaf groups.
+Each node is under the leaf group that it belongs to.
 
 ![Topology visualization dashboard](../../images/topology-visualization.png)
 
-For the dashboard installation, the connection to an external Grafana, and the
-details of the graph, see
-[Topology Visualization](./topology-visualization.md).
+For the dashboard installation, the connection to an external Grafana, and the details of the graph, see [Topology visualization](./topology-visualization.md).
 
 ## Troubleshooting
 
-### A Node Has No Topology Labels
+### A Node has no topology labels
 
 First make sure that the prerequisites are met:
 
-1. For Method 1 and Method 4, make sure that the NICs in the `FabricNode`
-   received LLDP neighbors:
+1. For LLDP discovery and Custom topology, make sure that the NICs in the `FabricNode` received LLDP neighbors:
 
    ```bash
    kubectl get fabricnode node1 -o jsonpath='{range .status.scaleOutNics[*]}{.name}{"\t"}{.lldpNeighbor.hostname}{"\t"}{.lldpNeighbor.port}{"\n"}{end}'
@@ -440,22 +425,20 @@ First make sure that the prerequisites are met:
    eth2	leaf2	Ethernet0
    ```
 
-   If the hostname column is empty, make sure that LLDP is enabled on the switch
-   and that the switch port of the node NIC sends LLDP frames. The
-   `LLDPNeighborsReady` condition of the `FabricNode` also reports the reason
-   `LLDPNeighborMissing`.
+   If the hostname column is empty, make sure that LLDP is enabled on the switch.
+   Also make sure that the switch port of the node NIC sends LLDP frames.
+   The `LLDPNeighborsReady` condition of the `FabricNode` also reports the reason `LLDPNeighborMissing`.
 
-2. For Method 2 and Method 3, make sure that `mode` is `nv-topograph` and that
-   the Topograph Deployment runs:
+2. For NetQ import and InfiniBand discovery, make sure that `mode` is `nv-topograph` and that the Topograph Deployment runs:
 
    ```bash
    kubectl -n unifabric-system get deployment unifabric-nvidia-topograph
    kubectl -n unifabric-system logs deployment/unifabric-nvidia-topograph --tail 100
    ```
 
-   For Method 2, examine the NetQ credentials and the API URL, and make sure that
-   the Topograph Pod reaches the NetQ API. For Method 3, make sure that the log
-   shows that `ibnetdiscover` runs.
+   For NetQ import, examine the NetQ credentials and the API address.
+   Make sure that the Topograph Pod can connect to the NetQ API.
+   For InfiniBand discovery, make sure that the log shows that `ibnetdiscover` runs correctly.
 
 3. Read the Controller log:
 
@@ -463,42 +446,26 @@ First make sure that the prerequisites are met:
    kubectl -n unifabric-system logs deployment/unifabric-controller --tail 200
    ```
 
-### Node Labels Have Only Tier 1
+### Node labels have only tier 1
 
-LLDP on the nodes discovers only the leaf tier. This symptom means that the
-information above the leaf tier did not reach the Controller:
+Node-side LLDP discovers only the leaf tier.
+This symptom means that the information above the leaf tier did not get to the Controller:
 
-- Method 1: make sure that every switch has a `Switch` resource and that
-  `HEALTHY` is `true` in `kubectl get switch -o wide`. If it is `false`, make
-  sure that the node that runs the Controller can reach port `8090` of the switch
-  and that the mTLS certificates match. See
-  [switch-agent onboarding](./switch-agent-onboarding.md#troubleshooting).
-- Method 4: make sure that a `Switch` resource exists for each switch at the
-  spine tier and above, and that each one has the
-  `unifabric.io/switch-neighbors` annotation. See
-  [Manual topology](./manual-topology.md#troubleshooting).
-- If the physical network has only a leaf tier, tier 1 alone is the expected
-  result.
+- LLDP discovery: Make sure that every switch has a `Switch` resource. Also make sure that `HEALTHY` is `true` in `kubectl get switch -o wide`. If it is `false`, make sure that the node that runs the Controller can connect to port `8090` of the switch. Also make sure that the mTLS certificates match. See [LLDP discovery](./lldp-discovery.md#troubleshooting).
+- Custom topology: Make sure that each switch at the spine tier and above has a `Switch` resource. Also make sure that each one has the `unifabric.io/switch-neighbors` annotation. See [Custom topology](./custom-topology.md#troubleshooting).
+- If the physical network has only one leaf tier, tier 1 alone is the expected result.
 
-### Switch Members Are Empty in Topology Visualization
+### Switch members are empty in topology visualization
 
-This is the expected behavior for Method 2 and Method 3. See
-[Add Switch Resources for Topograph Scenarios](./topograph-switch-resources.md).
+This is the expected behavior for NetQ import and InfiniBand discovery.
+See [Add Switch resources for Topograph scenarios](./topograph-switch-resources.md).
 
 ## References
 
-- [Topology discovery concepts](../../concepts/topology-discovery.md): logical
-  topology, discovery methods, and discovery results.
-- [switch-agent onboarding](./switch-agent-onboarding.md): Method 1.
-- [Manual topology](./manual-topology.md): Method 4.
-- [Add Switch Resources for Topograph Scenarios](./topograph-switch-resources.md):
-  the optional step for Method 2 and Method 3.
-- [Topology Visualization](./topology-visualization.md): installation and
-  reading of the Grafana dashboard.
-- [Topology reference](../../reference/topology.md),
-  [FabricNode reference](../../reference/fabricnode.md),
-  [Switch reference](../../reference/switch.md).
-- [Scale-out topology discovery design](../../design/scaleout-topology.md),
-  [Topology CRD design](../../design/topology-crd.md).
-- [Helm values reference](../../../chart/README.md): all `topoDiscovery.*`
-  parameters.
+- [Topology discovery concepts](../../concepts/topology-discovery.md): logical topology, discovery methods, and discovery results.
+- [LLDP discovery](./lldp-discovery.md), [Custom topology](./custom-topology.md), [NetQ import](./netq-import.md), [InfiniBand discovery](./infiniband-discovery.md): the principle, the requirements, and the configuration of each discovery method.
+- [Add Switch resources for Topograph scenarios](./topograph-switch-resources.md): the optional step for NetQ import and InfiniBand discovery.
+- [Topology visualization](./topology-visualization.md): the installation and the reading of the Grafana dashboard.
+- [Topology reference](../../reference/topology.md), [FabricNode reference](../../reference/fabricnode.md), [Switch reference](../../reference/switch.md).
+- [Scale-out topology discovery design](../../design/scaleout-topology.md), [Topology CRD design](../../design/topology-crd.md).
+- [Helm values reference](../../../chart/README.md): all `topoDiscovery.*` parameters.
