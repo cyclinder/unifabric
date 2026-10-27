@@ -1,11 +1,11 @@
-# 为 Topograph 场景补充 Switch 资源
+# 创建 Switch 实例
 
 English version: [topograph-switch-resources.md](./topograph-switch-resources.md)
 
 ## 简介
 
 在 NVIDIA Spectrum-X 和 InfiniBand 场景中,NVIDIA Topograph 产生 Node label 和
-`Topology` 资源。Unifabric 的 LLDP 发现不参与,所以集群中没有 `Switch` 资源。在
+`Topology` 资源。Unifabric 的 RoCE 网络中 LLDP 发现不参与,所以集群中没有 `Switch` 资源。在
 `Topology` 资源中,每个性能域的 `switchMember` 列表为空。在拓扑可视化中,每个域的交换机
 成员卡片也为空。调度和 label 不受影响。
 
@@ -15,7 +15,7 @@ English version: [topograph-switch-resources.md](./topograph-switch-resources.md
 
 ## 前提条件
 
-- 已按 [NetQ 导入](./netq-import.zh.md)或 [InfiniBand 发现](./infiniband-discovery.zh.md)完成
+- 已按 [RoCE 网络中 NVIDIA NetQ 发现](./roce-netq-discovery.zh.md)或 [InfiniBand 网络发现](./infiniband-discovery.zh.md)完成
   配置,并且 `kubectl get nodes -L scale-out.unifabric.io/tier-1` 中已出现拓扑 label。
 - 知道每台交换机属于哪个性能域。例如,NetQ 的输出或 `ibnetdiscover` 的输出显示
   哪个 leaf 域包含 `leaf1`。
@@ -79,6 +79,6 @@ tier1-group2	[]
 
 ## 参考
 
-- [NetQ 导入](./netq-import.zh.md)、[InfiniBand 发现](./infiniband-discovery.zh.md):使用本步骤的发现方式。
+- [RoCE 网络中 NVIDIA NetQ 发现](./roce-netq-discovery.zh.md)、[InfiniBand 网络发现](./infiniband-discovery.zh.md):使用本步骤的发现方式。
 - [Switch 参考](../../reference/switch.zh.md):`Switch` 资源的字段。
 - [Topology CRD 设计](../../design/topology-crd.zh.md):`switchMember` 的填充规则。

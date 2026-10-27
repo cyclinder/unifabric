@@ -91,7 +91,7 @@ For the other requirements of each discovery method on the network devices and t
 The three networks are independent.
 Each network has its own discovery mode in the Helm values.
 One cluster can use different discovery methods together.
-For example, the Scale-out network uses InfiniBand discovery, and the Storage network uses LLDP discovery.
+For example, the Scale-out network uses InfiniBand network discovery, and the Storage network uses LLDP discovery in RoCE networks.
 
 > Note: If you set both the Scale-out network and the Scale-up network to `nv-topograph`, they share one NVIDIA Topograph instance and one provider (`nvidiaTopograph.provider.name`).
 
@@ -112,22 +112,22 @@ The values in the "Support status" column have these meanings:
 
 | Network device | Discovery method | Helm configuration | Support status |
 | --- | --- | --- | --- |
-| Ethernet RoCE switch that runs SONiC and can run switch-agent | [LLDP discovery](./lldp-discovery.md) | `topoDiscovery.scaleOut.mode=unifabric-roce` (default) | Supported |
-| NVIDIA Spectrum-X switch that NetQ manages | [NetQ import](./netq-import.md) | `topoDiscovery.scaleOut.mode=nv-topograph`, `nvidiaTopograph.provider.name=netq` | Supported |
-| NVIDIA Spectrum-X switch without NetQ | [LLDP discovery](./lldp-discovery.md) | `topoDiscovery.scaleOut.mode=unifabric-roce` | Not verified |
-| NVIDIA InfiniBand switch | [InfiniBand discovery](./infiniband-discovery.md) | `topoDiscovery.scaleOut.mode=nv-topograph`, `nvidiaTopograph.provider.name=infiniband-k8s` (default) | Supported |
-| Ethernet switch that sends LLDP on the ports to the nodes, but cannot run switch-agent | [Custom topology](./custom-topology.md) | `topoDiscovery.scaleOut.mode=unifabric-roce` | Supported |
+| Ethernet RoCE switch that runs SONiC and can run switch-agent | [LLDP discovery in RoCE networks](./roce-lldp-discovery.md) | `topoDiscovery.scaleOut.mode=unifabric-roce` (default) | Supported |
+| NVIDIA Spectrum-X switch that NetQ manages | [NVIDIA NetQ discovery in RoCE networks](./roce-netq-discovery.md) | `topoDiscovery.scaleOut.mode=nv-topograph`, `nvidiaTopograph.provider.name=netq` | Supported |
+| NVIDIA Spectrum-X switch without NetQ | [LLDP discovery in RoCE networks](./roce-lldp-discovery.md) | `topoDiscovery.scaleOut.mode=unifabric-roce` | Not verified |
+| NVIDIA InfiniBand switch | [InfiniBand network discovery](./infiniband-discovery.md) | `topoDiscovery.scaleOut.mode=nv-topograph`, `nvidiaTopograph.provider.name=infiniband-k8s` (default) | Supported |
+| Ethernet switch that sends LLDP on the ports to the nodes, but cannot run switch-agent | [Custom network topology](./custom-network-topology.md) | `topoDiscovery.scaleOut.mode=unifabric-roce` | Supported |
 | Ethernet switch that does not send LLDP on the ports to the nodes | None | None | Not supported |
 
 ### Storage network
 
 | Network device | Discovery method | Helm configuration | Support status |
 | --- | --- | --- | --- |
-| Ethernet RoCE switch that runs SONiC and can run switch-agent | [LLDP discovery](./lldp-discovery.md) | `topoDiscovery.storage.mode=unifabric-roce` (default), and a selector for the storage NICs | Supported |
-| NVIDIA Spectrum-X switch that NetQ manages | Unifabric cannot yet identify the Storage network in the topology from NetQ import. Use [LLDP discovery](./lldp-discovery.md) (not verified) or [Custom topology](./custom-topology.md) instead. | `topoDiscovery.storage.mode=unifabric-roce` | Not supported yet |
-| NVIDIA Spectrum-X switch without NetQ | [LLDP discovery](./lldp-discovery.md) | `topoDiscovery.storage.mode=unifabric-roce` | Not verified |
-| NVIDIA InfiniBand switch | Unifabric cannot yet identify the Storage network in the topology from [InfiniBand discovery](./infiniband-discovery.md). InfiniBand NICs receive no LLDP, so the nodes cannot find their leaf. For this reason, LLDP discovery and Custom topology do not work. | None | Not supported yet |
-| Ethernet switch that sends LLDP on the ports to the nodes, but cannot run switch-agent | [Custom topology](./custom-topology.md) | `topoDiscovery.storage.mode=unifabric-roce` | Supported |
+| Ethernet RoCE switch that runs SONiC and can run switch-agent | [LLDP discovery in RoCE networks](./roce-lldp-discovery.md) | `topoDiscovery.storage.mode=unifabric-roce` (default), and a selector for the storage NICs | Supported |
+| NVIDIA Spectrum-X switch that NetQ manages | Unifabric cannot yet identify the Storage network in the topology from NVIDIA NetQ discovery in RoCE networks. Use [LLDP discovery in RoCE networks](./roce-lldp-discovery.md) (not verified) or [Custom network topology](./custom-network-topology.md) instead. | `topoDiscovery.storage.mode=unifabric-roce` | Not supported yet |
+| NVIDIA Spectrum-X switch without NetQ | [LLDP discovery in RoCE networks](./roce-lldp-discovery.md) | `topoDiscovery.storage.mode=unifabric-roce` | Not verified |
+| NVIDIA InfiniBand switch | Unifabric cannot yet identify the Storage network in the topology from [InfiniBand network discovery](./infiniband-discovery.md). InfiniBand NICs receive no LLDP, so the nodes cannot find their leaf. For this reason, LLDP discovery in RoCE networks and Custom network topology do not work. | None | Not supported yet |
+| Ethernet switch that sends LLDP on the ports to the nodes, but cannot run switch-agent | [Custom network topology](./custom-network-topology.md) | `topoDiscovery.storage.mode=unifabric-roce` | Supported |
 | Ethernet switch that does not send LLDP on the ports to the nodes | None | None | Not supported |
 
 ### Scale-up network
@@ -144,8 +144,8 @@ In a single-node NVLink system, such as HGX with 8 GPUs, one node is one NVLink 
 | GPU interconnect | Discovery method | Helm configuration | Support status |
 | --- | --- | --- | --- |
 | Single-node NVLink, for example HGX with 8 GPUs | Not necessary | `topoDiscovery.scaleUp.mode=manual` (default) | Not applicable |
-| Multi-node NVLink, and NetQ manages the NVLink domain | [NetQ import](./netq-import.md) | `topoDiscovery.scaleUp.mode=nv-topograph`, `nvidiaTopograph.provider.name=netq` | Supported |
-| Multi-node NVLink, and the Scale-out network is InfiniBand | [InfiniBand discovery](./infiniband-discovery.md). It reads the `nvidia.com/gpu.clique` label of the GPU Operator. | `topoDiscovery.scaleUp.mode=nv-topograph`, `nvidiaTopograph.provider.name=infiniband-k8s` | Supported |
+| Multi-node NVLink, and NetQ manages the NVLink domain | [NVLink domain discovery through NVIDIA NetQ](./roce-netq-discovery.md) | `topoDiscovery.scaleUp.mode=nv-topograph`, `nvidiaTopograph.provider.name=netq` | Supported |
+| Multi-node NVLink, and the Scale-out network is InfiniBand | [InfiniBand network discovery](./infiniband-discovery.md). It reads the `nvidia.com/gpu.clique` label of the GPU Operator. | `topoDiscovery.scaleUp.mode=nv-topograph`, `nvidiaTopograph.provider.name=infiniband-k8s` | Supported |
 | Multi-node NVLink without NetQ, and the Scale-out network is not InfiniBand | An administrator writes the labels | `topoDiscovery.scaleUp.mode=manual` | Not supported yet |
 | GPU interconnect that is not from NVIDIA | An administrator writes the labels | `topoDiscovery.scaleUp.mode=manual` | Not supported yet |
 
@@ -157,10 +157,10 @@ For the principle, the requirements, the limits, and the configuration steps of 
 
 | Discovery method | Applicable networks | Principle |
 | --- | --- | --- |
-| [LLDP discovery](./lldp-discovery.md) | Scale-out, Storage | The nodes read the LLDP neighbors of their NICs. The switch-agent on each switch reads the LLDP neighbors of the switch. The Controller combines both to calculate the tiers. |
-| [Custom topology](./custom-topology.md) | Scale-out, Storage | Node-side LLDP discovers the leaf. Neighbor declarations on `Switch` resources give the spine and the tiers above it. No software runs on the switches. |
-| [NetQ import](./netq-import.md) | Scale-out, Storage, Scale-up | NVIDIA Topograph reads the fabric topology and the NVLink domains through the NetQ API. |
-| [InfiniBand discovery](./infiniband-discovery.md) | Scale-out, Storage | NVIDIA Topograph runs `ibnetdiscover` on a GPU node to read the topology of the IB subnet. |
+| [LLDP discovery in RoCE networks](./roce-lldp-discovery.md) | Scale-out, Storage | The nodes read the LLDP neighbors of their NICs. The switch-agent on each switch reads the LLDP neighbors of the switch. The Controller combines both to calculate the tiers. |
+| [Custom network topology](./custom-network-topology.md) | Scale-out, Storage | Node-side LLDP discovers the leaf. Neighbor declarations on `Switch` resources give the spine and the tiers above it. No software runs on the switches. |
+| [NVIDIA NetQ discovery in RoCE networks](./roce-netq-discovery.md) | Scale-out, Storage, Scale-up | NVIDIA Topograph reads the fabric topology and the NVLink domains through the NetQ API. |
+| [InfiniBand network discovery](./infiniband-discovery.md) | Scale-out, Storage | NVIDIA Topograph runs `ibnetdiscover` on a GPU node to read the topology of the IB subnet. |
 
 ## Verification
 
@@ -231,7 +231,7 @@ The label model of the three networks:
 
 A higher tier number means a tier closer to the top of the network.
 When two nodes have the same value for a label, they are in the same performance domain.
-LLDP discovery names the domains `tier<N>-group<M>`.
+LLDP discovery in RoCE networks names the domains `tier<N>-group<M>`.
 Topograph uses its own names, for example `S-fc6a1c03006636c0` for an InfiniBand switch.
 
 The Helm value `topoDiscovery.<fabric>.nodeLabel.keyTemplate` defines the label key.
@@ -242,6 +242,11 @@ You can change the template, but it must contain exactly one `{{ .Tier }}`.
 
 Each network has one `Topology` resource: `scaleout`, `storage`, and `scaleup`.
 It summarizes the hierarchy of the performance domains and the domain path of each node:
+
+> Note: Multi-plane Scale-out networks, for example with 2, 4, or 8 planes, are not supported yet.
+> All planes map to one `scaleout` resource and one set of `scale-out.unifabric.io/tier-N` labels.
+> If a node connects to more than one plane, the switches of all planes are merged into the same domains, and the result does not show the topology of each plane.
+> Support for multi-plane networks is planned for a later release.
 
 ```bash
 kubectl get topologies.unifabric.io
@@ -414,7 +419,7 @@ For the dashboard installation, the connection to an external Grafana, and the d
 
 First make sure that the prerequisites are met:
 
-1. For LLDP discovery and Custom topology, make sure that the NICs in the `FabricNode` received LLDP neighbors:
+1. For LLDP discovery in RoCE networks and Custom network topology, make sure that the NICs in the `FabricNode` received LLDP neighbors:
 
    ```bash
    kubectl get fabricnode node1 -o jsonpath='{range .status.scaleOutNics[*]}{.name}{"\t"}{.lldpNeighbor.hostname}{"\t"}{.lldpNeighbor.port}{"\n"}{end}'
@@ -429,16 +434,16 @@ First make sure that the prerequisites are met:
    Also make sure that the switch port of the node NIC sends LLDP frames.
    The `LLDPNeighborsReady` condition of the `FabricNode` also reports the reason `LLDPNeighborMissing`.
 
-2. For NetQ import and InfiniBand discovery, make sure that `mode` is `nv-topograph` and that the Topograph Deployment runs:
+2. For NVIDIA NetQ discovery in RoCE networks and InfiniBand network discovery, make sure that `mode` is `nv-topograph` and that the Topograph Deployment runs:
 
    ```bash
    kubectl -n unifabric-system get deployment unifabric-nvidia-topograph
    kubectl -n unifabric-system logs deployment/unifabric-nvidia-topograph --tail 100
    ```
 
-   For NetQ import, examine the NetQ credentials and the API address.
+   For NVIDIA NetQ discovery in RoCE networks, examine the NetQ credentials and the API address.
    Make sure that the Topograph Pod can connect to the NetQ API.
-   For InfiniBand discovery, make sure that the log shows that `ibnetdiscover` runs correctly.
+   For InfiniBand network discovery, make sure that the log shows that `ibnetdiscover` runs correctly.
 
 3. Read the Controller log:
 
@@ -451,20 +456,20 @@ First make sure that the prerequisites are met:
 Node-side LLDP discovers only the leaf tier.
 This symptom means that the information above the leaf tier did not get to the Controller:
 
-- LLDP discovery: Make sure that every switch has a `Switch` resource. Also make sure that `HEALTHY` is `true` in `kubectl get switch -o wide`. If it is `false`, make sure that the node that runs the Controller can connect to port `8090` of the switch. Also make sure that the mTLS certificates match. See [LLDP discovery](./lldp-discovery.md#troubleshooting).
-- Custom topology: Make sure that each switch at the spine tier and above has a `Switch` resource. Also make sure that each one has the `unifabric.io/switch-neighbors` annotation. See [Custom topology](./custom-topology.md#troubleshooting).
+- LLDP discovery in RoCE networks: Make sure that every switch has a `Switch` resource. Also make sure that `HEALTHY` is `true` in `kubectl get switch -o wide`. If it is `false`, make sure that the node that runs the Controller can connect to port `8090` of the switch. Also make sure that the mTLS certificates match. See [LLDP discovery in RoCE networks](./roce-lldp-discovery.md#troubleshooting).
+- Custom network topology: Make sure that each switch at the spine tier and above has a `Switch` resource. Also make sure that each one has the `unifabric.io/switch-neighbors` annotation. See [Custom network topology](./custom-network-topology.md#troubleshooting).
 - If the physical network has only one leaf tier, tier 1 alone is the expected result.
 
 ### Switch members are empty in topology visualization
 
-This is the expected behavior for NetQ import and InfiniBand discovery.
-See [Add Switch resources for Topograph scenarios](./topograph-switch-resources.md).
+This is the expected behavior for NVIDIA NetQ discovery in RoCE networks and InfiniBand network discovery.
+See [Create Switch instances](./topograph-switch-resources.md).
 
 ## References
 
 - [Topology discovery concepts](../../concepts/topology-discovery.md): logical topology, discovery methods, and discovery results.
-- [LLDP discovery](./lldp-discovery.md), [Custom topology](./custom-topology.md), [NetQ import](./netq-import.md), [InfiniBand discovery](./infiniband-discovery.md): the principle, the requirements, and the configuration of each discovery method.
-- [Add Switch resources for Topograph scenarios](./topograph-switch-resources.md): the optional step for NetQ import and InfiniBand discovery.
+- [LLDP discovery in RoCE networks](./roce-lldp-discovery.md), [Custom network topology](./custom-network-topology.md), [NVIDIA NetQ discovery in RoCE networks](./roce-netq-discovery.md), [InfiniBand network discovery](./infiniband-discovery.md): the principle, the requirements, and the configuration of each discovery method.
+- [Create Switch instances](./topograph-switch-resources.md): the optional step for NVIDIA NetQ discovery in RoCE networks and InfiniBand network discovery.
 - [Topology visualization](./topology-visualization.md): the installation and the reading of the Grafana dashboard.
 - [Topology reference](../../reference/topology.md), [FabricNode reference](../../reference/fabricnode.md), [Switch reference](../../reference/switch.md).
 - [Scale-out topology discovery design](../../design/scaleout-topology.md), [Topology CRD design](../../design/topology-crd.md).

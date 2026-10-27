@@ -1,4 +1,4 @@
-# InfiniBand 发现
+# InfiniBand 网络发现
 
 English version: [infiniband-discovery.md](./infiniband-discovery.md)
 
@@ -8,7 +8,7 @@ InfiniBand 是独立于以太网的高速互联技术。Subnet Manager 维护整
 Unifabric 使用 NVIDIA Topograph 的 `infiniband-k8s` provider。Topograph 在 GPU 节点
 的 Pod 中运行 `ibnetdiscover`。它读取 IB 子网内的交换机、HCA 和链路。对于 Scale-up
 网络,Topograph 读取 GPU Operator 写在每个节点上的 `nvidia.com/gpu.clique` label。
-本文说明如何配置 InfiniBand 发现。
+本文说明如何配置 InfiniBand 网络发现。
 
 | 项目 | 说明 |
 | --- | --- |
@@ -27,9 +27,9 @@ Unifabric 使用 NVIDIA Topograph 的 `infiniband-k8s` provider。Topograph 在 
 - 本方式不创建 `Switch` 资源。`Topology` 资源和 Node label 是完整的。但在拓扑可视化
   中,每个性能域的交换机成员卡片为空。参见
   [可选:补充 Switch 资源](#可选补充-switch-资源)。
-- Unifabric 暂不支持在 InfiniBand 发现得到的拓扑中区分 Scale-out 网络和 Storage
+- Unifabric 暂不支持在 InfiniBand 网络发现得到的拓扑中区分 Scale-out 网络和 Storage
   网络。发现结果只作为 Scale-out 网络。如果 Storage 网络是以太网,为它使用
-  [LLDP 发现](./lldp-discovery.zh.md)或[自定义拓扑](./custom-topology.zh.md)。
+  [RoCE 网络中 LLDP 发现](./roce-lldp-discovery.zh.md)或[自定义网络拓扑](./custom-network-topology.zh.md)。
   如果 Storage 网络是 InfiniBand,目前不支持为它做拓扑发现。
 - Scale-up 网络的 NVLink 域需要 `ibnetdiscover` 成功运行。在没有 InfiniBand 的集群
   上,本方式不能单独提供 NVLink 域。
@@ -82,7 +82,7 @@ label 的含义,以及 `Topology` 资源的查看方法,参见
 ## 可选:补充 Switch 资源
 
 本方式不创建 `Switch` 资源。如果需要拓扑可视化显示交换机,参见
-[为 Topograph 场景补充 Switch 资源](./topograph-switch-resources.zh.md)。
+[创建 Switch 实例](./topograph-switch-resources.zh.md)。
 
 ## 故障排查
 
@@ -100,7 +100,7 @@ label 的含义,以及 `Topology` 资源的查看方法,参见
 ## 参考
 
 - [网络拓扑发现](./README.zh.md):如何为各网络选择发现方式,以及如何查看结果。
-- [NetQ 导入](./netq-import.zh.md):另一种同样使用 NVIDIA Topograph 的发现方式。
-- [为 Topograph 场景补充 Switch 资源](./topograph-switch-resources.zh.md):可选步骤。
+- [RoCE 网络中 NVIDIA NetQ 发现](./roce-netq-discovery.zh.md):另一种同样使用 NVIDIA Topograph 的发现方式。
+- [创建 Switch 实例](./topograph-switch-resources.zh.md):可选步骤。
 - [Topograph InfiniBand provider](https://github.com/dsx-ai-factory/topograph/blob/main/docs/providers/infiniband.md):
   上游文档。

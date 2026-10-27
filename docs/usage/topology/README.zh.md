@@ -91,7 +91,7 @@ Kueue、Volcano 和 KAI Scheduler 都支持拓扑亲和调度,但它们看不到
 三张网络相互独立。
 每张网络在 Helm values 中有自己的发现模式。
 一个集群可以同时使用不同的发现方式。
-例如 Scale-out 网络使用 InfiniBand 发现,Storage 网络使用 LLDP 发现。
+例如 Scale-out 网络使用 InfiniBand 网络发现,Storage 网络使用 RoCE 网络中 LLDP 发现。
 
 > 注意: 如果 Scale-out 网络和 Scale-up 网络都设置为 `nv-topograph`,两者共用一个 NVIDIA Topograph 实例和一个 provider (`nvidiaTopograph.provider.name`)。
 
@@ -112,22 +112,22 @@ Kueue、Volcano 和 KAI Scheduler 都支持拓扑亲和调度,但它们看不到
 
 | 网络设备 | 发现方式 | Helm 配置 | 支持情况 |
 | --- | --- | --- | --- |
-| 运行 SONiC 的以太网 RoCE 交换机,能运行 switch-agent | [LLDP 发现](./lldp-discovery.zh.md) | `topoDiscovery.scaleOut.mode=unifabric-roce` (默认) | 已支持 |
-| NVIDIA Spectrum-X 交换机,由 NetQ 管理 | [NetQ 导入](./netq-import.zh.md) | `topoDiscovery.scaleOut.mode=nv-topograph`,`nvidiaTopograph.provider.name=netq` | 已支持 |
-| NVIDIA Spectrum-X 交换机,没有 NetQ | [LLDP 发现](./lldp-discovery.zh.md) | `topoDiscovery.scaleOut.mode=unifabric-roce` | 未验证 |
-| NVIDIA InfiniBand 交换机 | [InfiniBand 发现](./infiniband-discovery.zh.md) | `topoDiscovery.scaleOut.mode=nv-topograph`,`nvidiaTopograph.provider.name=infiniband-k8s` (默认) | 已支持 |
-| 以太网交换机,面向节点的端口发送 LLDP,但不能运行 switch-agent | [自定义拓扑](./custom-topology.zh.md) | `topoDiscovery.scaleOut.mode=unifabric-roce` | 已支持 |
+| 运行 SONiC 的以太网 RoCE 交换机,能运行 switch-agent | [RoCE 网络中 LLDP 发现](./roce-lldp-discovery.zh.md) | `topoDiscovery.scaleOut.mode=unifabric-roce` (默认) | 已支持 |
+| NVIDIA Spectrum-X 交换机,由 NetQ 管理 | [RoCE 网络中 NVIDIA NetQ 发现](./roce-netq-discovery.zh.md) | `topoDiscovery.scaleOut.mode=nv-topograph`,`nvidiaTopograph.provider.name=netq` | 已支持 |
+| NVIDIA Spectrum-X 交换机,没有 NetQ | [RoCE 网络中 LLDP 发现](./roce-lldp-discovery.zh.md) | `topoDiscovery.scaleOut.mode=unifabric-roce` | 未验证 |
+| NVIDIA InfiniBand 交换机 | [InfiniBand 网络发现](./infiniband-discovery.zh.md) | `topoDiscovery.scaleOut.mode=nv-topograph`,`nvidiaTopograph.provider.name=infiniband-k8s` (默认) | 已支持 |
+| 以太网交换机,面向节点的端口发送 LLDP,但不能运行 switch-agent | [自定义网络拓扑](./custom-network-topology.zh.md) | `topoDiscovery.scaleOut.mode=unifabric-roce` | 已支持 |
 | 以太网交换机,面向节点的端口不发送 LLDP | 无 | 无 | 不支持 |
 
 ### Storage 网络
 
 | 网络设备 | 发现方式 | Helm 配置 | 支持情况 |
 | --- | --- | --- | --- |
-| 运行 SONiC 的以太网 RoCE 交换机,能运行 switch-agent | [LLDP 发现](./lldp-discovery.zh.md) | `topoDiscovery.storage.mode=unifabric-roce` (默认),并配置存储网卡的 selector | 已支持 |
-| NVIDIA Spectrum-X 交换机,由 NetQ 管理 | Unifabric 暂不能从 NetQ 导入的拓扑中识别 Storage 网络。改用 [LLDP 发现](./lldp-discovery.zh.md) (未验证) 或[自定义拓扑](./custom-topology.zh.md)。 | `topoDiscovery.storage.mode=unifabric-roce` | 暂不支持 |
-| NVIDIA Spectrum-X 交换机,没有 NetQ | [LLDP 发现](./lldp-discovery.zh.md) | `topoDiscovery.storage.mode=unifabric-roce` | 未验证 |
-| NVIDIA InfiniBand 交换机 | Unifabric 暂不能从 [InfiniBand 发现](./infiniband-discovery.zh.md)的拓扑中识别 Storage 网络。InfiniBand 网卡收不到 LLDP,所以节点找不到自己的 leaf。因此 LLDP 发现和自定义拓扑都不可用。 | 无 | 暂不支持 |
-| 以太网交换机,面向节点的端口发送 LLDP,但不能运行 switch-agent | [自定义拓扑](./custom-topology.zh.md) | `topoDiscovery.storage.mode=unifabric-roce` | 已支持 |
+| 运行 SONiC 的以太网 RoCE 交换机,能运行 switch-agent | [RoCE 网络中 LLDP 发现](./roce-lldp-discovery.zh.md) | `topoDiscovery.storage.mode=unifabric-roce` (默认),并配置存储网卡的 selector | 已支持 |
+| NVIDIA Spectrum-X 交换机,由 NetQ 管理 | Unifabric 暂不能从 NetQ 导入的拓扑中识别 Storage 网络。改用 [RoCE 网络中 LLDP 发现](./roce-lldp-discovery.zh.md) (未验证) 或[自定义网络拓扑](./custom-network-topology.zh.md)。 | `topoDiscovery.storage.mode=unifabric-roce` | 暂不支持 |
+| NVIDIA Spectrum-X 交换机,没有 NetQ | [RoCE 网络中 LLDP 发现](./roce-lldp-discovery.zh.md) | `topoDiscovery.storage.mode=unifabric-roce` | 未验证 |
+| NVIDIA InfiniBand 交换机 | Unifabric 暂不能从 [InfiniBand 网络发现](./infiniband-discovery.zh.md)的拓扑中识别 Storage 网络。InfiniBand 网卡收不到 LLDP,所以节点找不到自己的 leaf。因此 RoCE 网络中 LLDP 发现和自定义网络拓扑都不可用。 | 无 | 暂不支持 |
+| 以太网交换机,面向节点的端口发送 LLDP,但不能运行 switch-agent | [自定义网络拓扑](./custom-network-topology.zh.md) | `topoDiscovery.storage.mode=unifabric-roce` | 已支持 |
 | 以太网交换机,面向节点的端口不发送 LLDP | 无 | 无 | 不支持 |
 
 ### Scale-up 网络
@@ -144,8 +144,8 @@ Scale-up 网络是 GPU 之间的高速互联,例如 NVIDIA NVLink。
 | GPU 互联 | 发现方式 | Helm 配置 | 支持情况 |
 | --- | --- | --- | --- |
 | 单节点 NVLink,例如 HGX 8 卡 | 不需要 | `topoDiscovery.scaleUp.mode=manual` (默认) | 不适用 |
-| 多节点 NVLink,NVLink 域由 NetQ 管理 | [NetQ 导入](./netq-import.zh.md) | `topoDiscovery.scaleUp.mode=nv-topograph`,`nvidiaTopograph.provider.name=netq` | 已支持 |
-| 多节点 NVLink,Scale-out 网络是 InfiniBand | [InfiniBand 发现](./infiniband-discovery.zh.md)。它读取 GPU Operator 的 `nvidia.com/gpu.clique` label。 | `topoDiscovery.scaleUp.mode=nv-topograph`,`nvidiaTopograph.provider.name=infiniband-k8s` | 已支持 |
+| 多节点 NVLink,NVLink 域由 NetQ 管理 | [通过 NVIDIA NetQ 发现 NVLink 域](./roce-netq-discovery.zh.md) | `topoDiscovery.scaleUp.mode=nv-topograph`,`nvidiaTopograph.provider.name=netq` | 已支持 |
+| 多节点 NVLink,Scale-out 网络是 InfiniBand | [InfiniBand 网络发现](./infiniband-discovery.zh.md)。它读取 GPU Operator 的 `nvidia.com/gpu.clique` label。 | `topoDiscovery.scaleUp.mode=nv-topograph`,`nvidiaTopograph.provider.name=infiniband-k8s` | 已支持 |
 | 多节点 NVLink,没有 NetQ,Scale-out 网络也不是 InfiniBand | 由管理员写入 label | `topoDiscovery.scaleUp.mode=manual` | 暂不支持 |
 | 非 NVIDIA 的 GPU 互联 | 由管理员写入 label | `topoDiscovery.scaleUp.mode=manual` | 暂不支持 |
 
@@ -157,10 +157,10 @@ Scale-up 网络是 GPU 之间的高速互联,例如 NVIDIA NVLink。
 
 | 发现方式 | 适用网络 | 原理 |
 | --- | --- | --- |
-| [LLDP 发现](./lldp-discovery.zh.md) | Scale-out、Storage | 节点读取网卡的 LLDP 邻居。每台交换机上的 switch-agent 读取交换机的 LLDP 邻居。Controller 合并两者计算层级。 |
-| [自定义拓扑](./custom-topology.zh.md) | Scale-out、Storage | 节点侧 LLDP 发现 leaf。`Switch` 资源上的邻居声明给出 spine 及以上的层级。交换机上不运行任何软件。 |
-| [NetQ 导入](./netq-import.zh.md) | Scale-out、Storage、Scale-up | NVIDIA Topograph 通过 NetQ API 读取 fabric 拓扑和 NVLink 域。 |
-| [InfiniBand 发现](./infiniband-discovery.zh.md) | Scale-out、Storage | NVIDIA Topograph 在一个 GPU 节点上运行 `ibnetdiscover`,读取 IB 子网的拓扑。 |
+| [RoCE 网络中 LLDP 发现](./roce-lldp-discovery.zh.md) | Scale-out、Storage | 节点读取网卡的 LLDP 邻居。每台交换机上的 switch-agent 读取交换机的 LLDP 邻居。Controller 合并两者计算层级。 |
+| [自定义网络拓扑](./custom-network-topology.zh.md) | Scale-out、Storage | 节点侧 LLDP 发现 leaf。`Switch` 资源上的邻居声明给出 spine 及以上的层级。交换机上不运行任何软件。 |
+| [RoCE 网络中 NVIDIA NetQ 发现](./roce-netq-discovery.zh.md) | Scale-out、Storage、Scale-up | NVIDIA Topograph 通过 NetQ API 读取 fabric 拓扑和 NVLink 域。 |
+| [InfiniBand 网络发现](./infiniband-discovery.zh.md) | Scale-out、Storage | NVIDIA Topograph 在一个 GPU 节点上运行 `ibnetdiscover`,读取 IB 子网的拓扑。 |
 
 ## 验证
 
@@ -231,7 +231,7 @@ Topograph 从 GPU Operator 的 clique label 或 NetQ 得到这个值。
 
 tier 数字越大,表示层级越靠近网络上层。
 两个节点的某个 label 值相同时,它们在同一个性能域。
-LLDP 发现把域命名为 `tier<N>-group<M>`。
+RoCE 网络中 LLDP 发现把域命名为 `tier<N>-group<M>`。
 Topograph 使用自己的命名,例如 InfiniBand 交换机的 `S-fc6a1c03006636c0`。
 
 Helm value `topoDiscovery.<fabric>.nodeLabel.keyTemplate` 定义 label key。
@@ -242,6 +242,11 @@ Helm value `topoDiscovery.<fabric>.nodeLabel.keyTemplate` 定义 label key。
 
 每张网络有一个 `Topology` 资源: `scaleout`、`storage` 和 `scaleup`。
 它汇总性能域的层级关系和每个节点的域路径:
+
+> 注意: 当前暂不支持多平面 (multi-plane) 的 Scale-out 网络,例如 2、4 或 8 个平面。
+> 所有平面只对应一个 `scaleout` 资源和一套 `scale-out.unifabric.io/tier-N` label。
+> 如果节点接入多个平面,各平面的交换机会被合并到同一组域中,结果不能反映每个平面各自的拓扑。
+> 后续版本计划支持多平面。
 
 ```bash
 kubectl get topologies.unifabric.io
@@ -414,7 +419,7 @@ Grafana 拓扑仪表盘把每个 `Topology` 资源渲染成交互式图形。
 
 先确认前提条件已满足:
 
-1. 对于 LLDP 发现和自定义拓扑,确认 `FabricNode` 中的网卡已收到 LLDP 邻居:
+1. 对于 RoCE 网络中 LLDP 发现和自定义网络拓扑,确认 `FabricNode` 中的网卡已收到 LLDP 邻居:
 
    ```bash
    kubectl get fabricnode node1 -o jsonpath='{range .status.scaleOutNics[*]}{.name}{"\t"}{.lldpNeighbor.hostname}{"\t"}{.lldpNeighbor.port}{"\n"}{end}'
@@ -429,16 +434,16 @@ Grafana 拓扑仪表盘把每个 `Topology` 资源渲染成交互式图形。
    同时确认节点网卡对应的交换机端口发送 LLDP 报文。
    `FabricNode` 的 `LLDPNeighborsReady` condition 也会报告原因 `LLDPNeighborMissing`。
 
-2. 对于 NetQ 导入和 InfiniBand 发现,确认 `mode` 为 `nv-topograph`,并且 Topograph Deployment 在运行:
+2. 对于 RoCE 网络中 NVIDIA NetQ 发现和 InfiniBand 网络发现,确认 `mode` 为 `nv-topograph`,并且 Topograph Deployment 在运行:
 
    ```bash
    kubectl -n unifabric-system get deployment unifabric-nvidia-topograph
    kubectl -n unifabric-system logs deployment/unifabric-nvidia-topograph --tail 100
    ```
 
-   对于 NetQ 导入,检查 NetQ 凭据和 API 地址。
+   对于 RoCE 网络中 NVIDIA NetQ 发现,检查 NetQ 凭据和 API 地址。
    确认 Topograph Pod 能连接 NetQ API。
-   对于 InfiniBand 发现,确认日志显示 `ibnetdiscover` 正常运行。
+   对于 InfiniBand 网络发现,确认日志显示 `ibnetdiscover` 正常运行。
 
 3. 查看 Controller 日志:
 
@@ -451,20 +456,20 @@ Grafana 拓扑仪表盘把每个 `Topology` 资源渲染成交互式图形。
 节点侧 LLDP 只发现 leaf 层。
 这个现象说明 leaf 层以上的信息没有到达 Controller:
 
-- LLDP 发现: 确认每台交换机都有 `Switch` 资源。同时确认 `kubectl get switch -o wide` 中 `HEALTHY` 为 `true`。如果为 `false`,确认运行 Controller 的节点能连接交换机的 `8090` 端口。同时确认 mTLS 证书匹配。参见 [LLDP 发现](./lldp-discovery.zh.md#故障排查)。
-- 自定义拓扑: 确认 spine 层及以上的每台交换机都有 `Switch` 资源。同时确认每个资源都有 `unifabric.io/switch-neighbors` annotation。参见[自定义拓扑](./custom-topology.zh.md#故障排查)。
+- RoCE 网络中 LLDP 发现: 确认每台交换机都有 `Switch` 资源。同时确认 `kubectl get switch -o wide` 中 `HEALTHY` 为 `true`。如果为 `false`,确认运行 Controller 的节点能连接交换机的 `8090` 端口。同时确认 mTLS 证书匹配。参见 [RoCE 网络中 LLDP 发现](./roce-lldp-discovery.zh.md#故障排查)。
+- 自定义网络拓扑: 确认 spine 层及以上的每台交换机都有 `Switch` 资源。同时确认每个资源都有 `unifabric.io/switch-neighbors` annotation。参见[自定义网络拓扑](./custom-network-topology.zh.md#故障排查)。
 - 如果物理网络只有一层 leaf,只有 tier 1 是预期结果。
 
 ### 拓扑可视化中交换机成员为空
 
-这是 NetQ 导入和 InfiniBand 发现的预期行为。
-参见[为 Topograph 场景补充 Switch 资源](./topograph-switch-resources.zh.md)。
+这是 RoCE 网络中 NVIDIA NetQ 发现和 InfiniBand 网络发现的预期行为。
+参见[创建 Switch 实例](./topograph-switch-resources.zh.md)。
 
 ## 参考
 
 - [拓扑发现概念](../../concepts/topology-discovery.zh.md): 逻辑拓扑、发现方式和发现结果。
-- [LLDP 发现](./lldp-discovery.zh.md)、[自定义拓扑](./custom-topology.zh.md)、[NetQ 导入](./netq-import.zh.md)、[InfiniBand 发现](./infiniband-discovery.zh.md): 各发现方式的原理、要求和配置。
-- [为 Topograph 场景补充 Switch 资源](./topograph-switch-resources.zh.md): NetQ 导入和 InfiniBand 发现的可选步骤。
+- [RoCE 网络中 LLDP 发现](./roce-lldp-discovery.zh.md)、[自定义网络拓扑](./custom-network-topology.zh.md)、[RoCE 网络中 NVIDIA NetQ 发现](./roce-netq-discovery.zh.md)、[InfiniBand 网络发现](./infiniband-discovery.zh.md): 各发现方式的原理、要求和配置。
+- [创建 Switch 实例](./topograph-switch-resources.zh.md): RoCE 网络中 NVIDIA NetQ 发现和 InfiniBand 网络发现的可选步骤。
 - [拓扑可视化](./topology-visualization.zh.md): Grafana 仪表盘的安装和解读。
 - [Topology 参考](../../reference/topology.zh.md)、[FabricNode 参考](../../reference/fabricnode.zh.md)、[Switch 参考](../../reference/switch.zh.md)。
 - [Scale-out 拓扑发现设计](../../design/scaleout-topology.zh.md)、[Topology CRD 设计](../../design/topology-crd.zh.md)。

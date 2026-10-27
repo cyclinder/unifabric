@@ -38,7 +38,7 @@ SONiC 交换机接入方式、label 语义和发现链路排查，参见
 - [RDMA 流归因](./usage/rdma-flow.zh.md)：用 eBPF 把 RDMA 发送归因为 Pod 间流，发布
   `RDMAEndpoint` 并存储逐次发送事件。
 - [拓扑感知调度](./usage/topology/README.zh.md#在调度器中使用-node-label)：配合 Kueue TAS 等调度器做拓扑感知调度。
-- [Switch Agent 部署](./usage/topology/lldp-discovery.zh.md)：在 SONiC 交换机上部署 Switch Agent。
+- [Switch Agent 部署](./usage/topology/roce-lldp-discovery.zh.md)：在 SONiC 交换机上部署 Switch Agent。
 
 ## 参考手册
 

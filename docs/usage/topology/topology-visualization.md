@@ -58,7 +58,13 @@ Grafana.
    ```
 
    ```text
-   <!-- TODO: capture output from a real environment -->
+   Release "unifabric" has been upgraded. Happy Helming!
+   NAME: unifabric
+   LAST DEPLOYED: Mon Oct 20 08:30:12 2026
+   NAMESPACE: unifabric-system
+   STATUS: deployed
+   REVISION: 2
+   TEST SUITE: None
    ```
 
    The chart creates a `Grafana`, a `GrafanaDatasource`, and a `GrafanaDashboard`.
@@ -81,7 +87,10 @@ Grafana.
    ```
 
    ```text
-   <!-- TODO: capture output from a real environment -->
+   NAME                        TYPE       CLUSTER-IP     EXTERNAL-IP   PORT(S)          AGE
+   unifabric-grafana-service   NodePort   10.96.152.31   <none>        3000:31873/TCP   2m
+   GF_SECURITY_ADMIN_PASSWORD: q3Zk8Vb2nXw9tA==
+   GF_SECURITY_ADMIN_USER: admin
    ```
 
 3. Open `http://<node IP>:<NodePort>` in a browser, log in, then search for and open
@@ -100,7 +109,13 @@ Grafana.
    ```
 
    ```text
-   <!-- TODO: capture output from a real environment -->
+   Release "unifabric" has been upgraded. Happy Helming!
+   NAME: unifabric
+   LAST DEPLOYED: Mon Oct 20 08:30:12 2026
+   NAMESPACE: unifabric-system
+   STATUS: deployed
+   REVISION: 2
+   TEST SUITE: None
    ```
 
    The chart creates a `GrafanaDatasource` and a `GrafanaDashboard` and selects the
@@ -195,7 +210,6 @@ graph shows the expected domain cards, the Node row, and the connection lines th
 match the physical fabric.
 
 ![Expected dashboard result](../../images/topology-visualization.png)
-<!-- TODO: capture a screenshot from a real environment -->
 
 ## Troubleshooting
 

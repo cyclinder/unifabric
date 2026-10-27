@@ -1,11 +1,11 @@
-# LLDP Discovery
+# LLDP Discovery in RoCE Networks
 
-中文版: [lldp-discovery.zh.md](./lldp-discovery.zh.md)
+中文版: [roce-lldp-discovery.zh.md](./roce-lldp-discovery.zh.md)
 
 ## Introduction
 
 LLDP is a protocol. A device uses it to advertise its identity and its ports to the
-device at the other end of a link. LLDP discovery has two parts:
+device at the other end of a link. LLDP discovery in RoCE networks has two parts:
 
 - The Unifabric Agent on each node reads the LLDP neighbors of each RDMA NIC. This
   gives the links from the node to the leaf switches.
@@ -27,7 +27,7 @@ switches in Kubernetes.
 | Helm configuration | `topoDiscovery.scaleOut.mode=unifabric-roce` or `topoDiscovery.storage.mode=unifabric-roce`. Both are the default values. The Storage network also needs a NIC selector. See [basic installation](../../getting-started.md#installation). |
 
 If your security policy does not let you run software on the switches, use
-[Custom topology](./custom-topology.md) instead. Also use it if the switch OS has
+[Custom network topology](./custom-network-topology.md) instead. Also use it if the switch OS has
 no Docker and no Linux shell.
 
 > Note: NVIDIA Spectrum switches run Cumulus Linux, which supports LLDP and Docker.
@@ -42,22 +42,76 @@ To select a discovery method for each network on different network devices, see
   and `topoDiscovery.scaleOut.mode` or `topoDiscovery.storage.mode` is
   `unifabric-roce`.
 - LLDP is enabled on every switch. Run the command below on the switch. A leaf must
-  see the nodes and the spine. A spine must see all leaf switches:
+  see the nodes and the spine. A spine must see all leaf switches. The example
+  below is the output on `leaf1`:
 
   ```bash
-  lldpcli show neighbors -f json0
+  lldpcli show neighbors summary
   ```
 
   ```text
-  <!-- TODO: collect the output from a real environment -->
+  -------------------------------------------------------------------------------
+  LLDP neighbors:
+  -------------------------------------------------------------------------------
+  Interface:    Ethernet0, via: LLDP
+    Chassis:
+      ChassisID:    mac ee:e0:c1:36:71:78
+      SysName:      node1
+    Port:
+      PortID:       mac ee:e0:c1:36:71:78
+      PortDescr:    eth1
+      TTL:          120
+  -------------------------------------------------------------------------------
+  Interface:    Ethernet48, via: LLDP
+    Chassis:
+      ChassisID:    mac 4a:c8:80:d5:14:63
+      SysName:      spine1
+    Port:
+      PortID:       mac 4a:c8:80:d5:14:63
+      PortDescr:    Ethernet0
+      TTL:          120
+  -------------------------------------------------------------------------------
   ```
 
 - The Kubernetes Node that runs `unifabric-controller` can reach TCP port `8090`
-  on the management IP of every switch. The management IP is usually on the
-  out-of-band management network. Make sure that the firewall or ACL of the
-  switch allows inbound connections to port `8090` from the Controller node. Also
-  make sure that the firewall of the Controller node allows outbound connections
-  to the switches.
+  on the management IP of every switch. The management IP is `spec.mgmtIP` of the
+  `Switch` resource. Set it to the address of the switch management port on the
+  out-of-band management network.
+
+  The Controller Pod does not use the host network. Its traffic leaves through
+  the default route of its node. In an AI cluster, the default route of a node is
+  usually on the server management network, and the switch management ports are
+  on a different out-of-band management network. So these conditions must be
+  true:
+  - A route exists between the server management network and the out-of-band
+    management network of the switches. NVIDIA NetQ, UFM, and other network
+    management software have the same requirement: their servers must also reach
+    the out-of-band management network of the switches.
+    Each architecture provides this route in a different way. For example, in
+    NVIDIA DGX SuperPOD GB200, the in-band network has a dedicated segment that
+    lets the management nodes reach the out-of-band devices. In GB300 and Vera
+    Rubin, the out-of-band network can be a physically separate network that
+    connects to the other networks through its own uplink or through route
+    leaking. Before the deployment, ask the network administrator to confirm this
+    route. See the NVIDIA documents in [References](#references).
+  - If only some nodes can reach the out-of-band management network of the
+    switches, for example the Kubernetes control plane nodes, use the Helm value
+    `controller.nodeSelector`, `controller.tolerations`, or `controller.affinity`
+    to schedule the Controller on these nodes.
+  - The firewall or ACL of the switch allows inbound connections to port `8090`
+    from the Controller node. The firewall of the Controller node allows outbound
+    connections to the switches.
+
+  On the node that runs the Controller, use the command below to check the
+  connection:
+
+  ```bash
+  nc -zv <switch-management-ip> 8090
+  ```
+
+  The Controller checks switch-agent against a pinned certificate. It does not
+  check the IP address in the certificate, so a different management IP does not
+  need new certificates.
 - A host with a configured `kubectl` context is available to export the mTLS
   certificates.
 
@@ -132,17 +186,34 @@ docker logs --tail 100 unifabric-switch-agent
 ```
 
 ```text
-<!-- TODO: collect the output from a real environment -->
+7df6e0a82fb9   ghcr.io/unifabric-io/unifabric-switch-agent:v0.4.2   "/usr/bin/unifabric/…"   2 minutes ago   Up 2 minutes   0.0.0.0:8090->8090/tcp, [::]:8090->8090/tcp   unifabric-switch-agent
+{"time":"2026-10-20T08:15:02.114702361Z","level":"INFO","source":{"function":"main.main","file":"/unifabric/cmd/switch-agent/main.go","line":20},"msg":"load switch-agent config","source":"env"}
+{"time":"2026-10-20T08:15:02.115380925Z","level":"INFO","source":{"function":"main.main","file":"/unifabric/cmd/switch-agent/main.go","line":44},"msg":"start switch agent"}
+{"time":"2026-10-20T08:15:02.117264118Z","level":"INFO","source":{"function":"github.com/unifabric-io/unifabric/pkg/switchagent.(*Agent).Start","file":"/unifabric/pkg/switchagent/agent.go","line":88},"msg":"start switch agent","switchName":"leaf1","listenAddress":":8090","mtlsEnabled":true,"lldpRefreshInterval":"10s","lldpCollectionMode":"socket","lldpSocketPath":"/run/lldpd.socket","lldpCLIVersion":"1.0.16"}
 ```
 
-The three deployment options below apply when the default deployment is not
-usable:
+The default deployment may not be usable, or you may need to deploy many
+switches. Then choose the deployment from three independent choices:
 
-| Deployment option | Use it when |
-| --- | --- |
-| Option 1: deployment script | The switches run Docker, and you deploy several switches from one management host. |
-| Option 2: container in `hostProc` mode | The switch runs Docker, but the switch OS does not expose `/run/lldpd.socket`, or the socket permissions block container access. |
-| Option 3: systemd service | The switch cannot run Docker or another container runtime. |
+- Run type: if the switch can run Docker, run switch-agent as a container. If it
+  cannot, run it as a systemd service.
+- LLDP collection mode, for containers only: `socket` mode mounts the host
+  `/run/lldpd.socket` and needs no privileges. It is the default. `hostProc` mode
+  does not need the socket, but it needs `--privileged`, host network, host UTS,
+  and the host `/proc`.
+- Delivery: run the commands on each switch by hand, or deploy many switches from
+  one management host with the deployment script. The script supports both LLDP
+  collection modes. `LLDP_COLLECTION_MODE` selects the mode.
+
+| Run type | LLDP collection mode | Switch requirements | Manual, one switch at a time | Script, many switches |
+| --- | --- | --- | --- | --- |
+| Container | `socket` (default) | Docker. The host exposes `/run/lldpd.socket` and allows a container to mount it. | The default deployment above | [Option 1](#deployment-option-1-deploy-several-switches-with-the-script), `LLDP_COLLECTION_MODE=socket` |
+| Container | `hostProc` | Docker. A container can run with `--privileged`, host network, and host UTS. | [Option 2](#deployment-option-2-run-the-container-in-hostproc-mode) | [Option 1](#deployment-option-1-deploy-several-switches-with-the-script), `LLDP_COLLECTION_MODE=hostProc` |
+| systemd service | Calls the local `lldpcli` directly | No Docker. `lldpcli` is installed. | [Option 3](#deployment-option-3-install-as-a-systemd-service) | Not supported |
+
+Prefer `socket` mode, because it needs the fewest permissions. Select `hostProc`
+mode only if the switch OS does not expose `/run/lldpd.socket`, or if the socket
+permissions block container access.
 
 #### Deployment Option 1: Deploy Several Switches with the Script
 
@@ -188,7 +259,7 @@ otherwise.
    ```
 
    ```text
-   <!-- TODO: collect the output from a real environment -->
+   srwxrwx--- 1 _lldpd _lldpd 0 Oct 20 08:10 /run/lldpd.socket
    ```
 
    The first character of the permission string must be `s`, which marks a Unix
@@ -229,7 +300,16 @@ otherwise.
    ```
 
    ```text
-   <!-- TODO: collect the output from a real environment -->
+   Deploying switch-agent to your-ssh-user@192.0.2.11
+   3f1c9d2e8b7a6f04d2c18e95b7a3f6c0d1e2b4a5968c7d3e1f0a2b4c6d8e9f01
+   Completed: 192.0.2.11
+   Deploying switch-agent to your-ssh-user@192.0.2.12
+   b82d4e6f1a3c5097e8d2b4f6a1c3e5d7092b4d6f8a1c3e5b7d9f1a3c5e7b9d02
+   Completed: 192.0.2.12
+   Deploying switch-agent to your-ssh-user@192.0.2.21
+   c5e7a9b1d3f5072e4c6a8b0d2f4e6a8c0b2d4f6e8a0c2b4d6f8e0a2c4b6d8f03
+   Completed: 192.0.2.21
+   switch-agent deployed on 3 switch(es) with socket LLDP collection.
    ```
 
    > Note: The SSH key authenticates only the login. The script still runs
@@ -252,7 +332,17 @@ otherwise.
    ```
 
    ```text
-   <!-- TODO: collect the output from a real environment -->
+   SSH password for your-ssh-user:
+   Deploying switch-agent to your-ssh-user@192.0.2.11
+   3f1c9d2e8b7a6f04d2c18e95b7a3f6c0d1e2b4a5968c7d3e1f0a2b4c6d8e9f01
+   Completed: 192.0.2.11
+   Deploying switch-agent to your-ssh-user@192.0.2.12
+   b82d4e6f1a3c5097e8d2b4f6a1c3e5d7092b4d6f8a1c3e5b7d9f1a3c5e7b9d02
+   Completed: 192.0.2.12
+   Deploying switch-agent to your-ssh-user@192.0.2.21
+   c5e7a9b1d3f5072e4c6a8b0d2f4e6a8c0b2d4f6e8a0c2b4d6f8e0a2c4b6d8f03
+   Completed: 192.0.2.21
+   switch-agent deployed on 3 switch(es) with socket LLDP collection.
    ```
 
    > Note: Password mode assumes that the SSH password is also the sudo
@@ -285,7 +375,11 @@ otherwise.
    ```
 
    ```text
-   <!-- TODO: collect the output from a real environment -->
+   CONTAINER ID   IMAGE                                                COMMAND                  CREATED         STATUS         PORTS                                         NAMES
+   3f1c9d2e8b7a   ghcr.io/unifabric-io/unifabric-switch-agent:v0.4.2   "/usr/bin/unifabric/…"   5 minutes ago   Up 5 minutes   0.0.0.0:8090->8090/tcp, [::]:8090->8090/tcp   unifabric-switch-agent
+   {"time":"2026-10-20T08:15:02.114702361Z","level":"INFO","source":{"function":"main.main","file":"/unifabric/cmd/switch-agent/main.go","line":20},"msg":"load switch-agent config","source":"env"}
+   {"time":"2026-10-20T08:15:02.115380925Z","level":"INFO","source":{"function":"main.main","file":"/unifabric/cmd/switch-agent/main.go","line":44},"msg":"start switch agent"}
+   {"time":"2026-10-20T08:15:02.117264118Z","level":"INFO","source":{"function":"github.com/unifabric-io/unifabric/pkg/switchagent.(*Agent).Start","file":"/unifabric/pkg/switchagent/agent.go","line":88},"msg":"start switch agent","switchName":"leaf1","listenAddress":":8090","mtlsEnabled":true,"lldpRefreshInterval":"10s","lldpCollectionMode":"socket","lldpSocketPath":"/run/lldpd.socket","lldpCLIVersion":"1.0.16"}
    ```
 
 #### Deployment Option 2: Run the Container in hostProc Mode
@@ -329,10 +423,6 @@ Run all commands in this option on the target switch.
      /usr/bin/unifabric/switch-agent
    ```
 
-   ```text
-   <!-- TODO: collect the output from a real environment -->
-   ```
-
    > Warning: The container runs with `--privileged`, host network, host UTS,
    > and the host `/proc`. If the switch OS exposes `/run/lldpd.socket` reliably,
    > use the default deployment in
@@ -347,7 +437,10 @@ Run all commands in this option on the target switch.
    ```
 
    ```text
-   <!-- TODO: collect the output from a real environment -->
+   9a4e7b10c3d5   ghcr.io/unifabric-io/unifabric-switch-agent:v0.4.2   "/usr/bin/unifabric/…"   2 minutes ago   Up 2 minutes             unifabric-switch-agent
+   {"time":"2026-10-20T08:15:02.114702361Z","level":"INFO","source":{"function":"main.main","file":"/unifabric/cmd/switch-agent/main.go","line":20},"msg":"load switch-agent config","source":"env"}
+   {"time":"2026-10-20T08:15:02.115380925Z","level":"INFO","source":{"function":"main.main","file":"/unifabric/cmd/switch-agent/main.go","line":44},"msg":"start switch agent"}
+   {"time":"2026-10-20T08:15:02.117264118Z","level":"INFO","source":{"function":"github.com/unifabric-io/unifabric/pkg/switchagent.(*Agent).Start","file":"/unifabric/pkg/switchagent/agent.go","line":88},"msg":"start switch agent","switchName":"leaf1","listenAddress":":8090","mtlsEnabled":true,"lldpRefreshInterval":"10s","lldpCollectionMode":"hostProc","lldpSocketPath":"/run/lldpd.socket","lldpCLIVersion":"1.0.16"}
    ```
 
 #### Deployment Option 3: Install as a systemd Service
@@ -380,7 +473,7 @@ Run all commands in this option on the target switch.
    ```
 
    ```text
-   <!-- TODO: collect the output from a real environment -->
+   unifabric-switch-agent_v0.4.2_linux_amd64.tar.gz: OK
    ```
 
 2. Install the exported mTLS files to `/etc/unifabric/switch-mtls`:
@@ -422,12 +515,15 @@ Run all commands in this option on the target switch.
 5. Make sure that the service runs and that the log has no errors:
 
    ```bash
-   systemctl status unifabric-switch-agent
+   systemctl is-active unifabric-switch-agent
    journalctl -u unifabric-switch-agent -n 100 --no-pager
    ```
 
    ```text
-   <!-- TODO: collect the output from a real environment -->
+   active
+   Oct 20 08:20:11 leaf1 unifabric-switch-agent[2817]: {"time":"2026-10-20T08:20:11.114702361Z","level":"INFO","source":{"function":"main.main","file":"github.com/unifabric-io/unifabric/cmd/switch-agent/main.go","line":20},"msg":"load switch-agent config","source":"env"}
+   Oct 20 08:20:11 leaf1 unifabric-switch-agent[2817]: {"time":"2026-10-20T08:20:11.115380925Z","level":"INFO","source":{"function":"main.main","file":"github.com/unifabric-io/unifabric/cmd/switch-agent/main.go","line":44},"msg":"start switch agent"}
+   Oct 20 08:20:11 leaf1 unifabric-switch-agent[2817]: {"time":"2026-10-20T08:20:11.117264118Z","level":"INFO","source":{"function":"github.com/unifabric-io/unifabric/pkg/switchagent.(*Agent).Start","file":"github.com/unifabric-io/unifabric/pkg/switchagent/agent.go","line":88},"msg":"start switch agent","switchName":"leaf1","listenAddress":":8090","mtlsEnabled":true,"lldpRefreshInterval":"10s","lldpCollectionMode":"socket","lldpSocketPath":"/run/lldpd.socket","lldpCLIVersion":"1.0.16"}
    ```
 
 ### Step 3: Create the Switch Resources
@@ -469,7 +565,7 @@ to `Storage`.
 > the hostname that the node LLDP discovered.
 
 > Do not add the `unifabric.io/switch-neighbors` annotation to any `Switch` of the
-> same role. That annotation selects [Custom topology](./custom-topology.md).
+> same role. That annotation selects [Custom network topology](./custom-network-topology.md).
 
 ## Verification
 
@@ -545,7 +641,7 @@ set `SUDO_PASSWORD` before the run.
 
 - [Network topology discovery](./README.md): the discovery methods and how to view
   the result.
-- [Custom topology](./custom-topology.md): declare the switch neighbors instead of
+- [Custom network topology](./custom-network-topology.md): declare the switch neighbors instead of
   running switch-agent.
 - [Switch reference](../../reference/switch.md): the `spec` and `status` fields of
   the `Switch` resource.
@@ -553,3 +649,20 @@ set `SUDO_PASSWORD` before the run.
   Controller uses the switch-side LLDP snapshot.
 - [deploy-switch-agent.sh](../../../tools/deploy-switch-agent/deploy-switch-agent.sh):
   the batch deployment script.
+
+The NVIDIA documents below describe the management networks in an AI cluster,
+and how network management software reaches the out-of-band management network
+of the switches:
+
+- [DGX SuperPOD GB200 reference architecture: Network Fabrics](https://docs.nvidia.com/dgx-superpod/reference-architecture-scalable-infrastructure-gb200/latest/network-fabrics.html):
+  the in-band segment dedicated to access to the out-of-band devices.
+- [DGX SuperPOD GB300 reference architecture (PDF)](https://docs.nvidia.com/pdf/dgx-spod-gb300-ra.pdf):
+  the separate out-of-band network, its uplink, and route leaking.
+- [DGX SuperPOD Spectrum-X reference architecture: Vera Rubin NVL72 (PDF)](https://docs.nvidia.com/dgx-superpod-spectrum-x-reference-architecture-with-dgx-vera-rubin-nvl72.pdf):
+  the switch management network inside the out-of-band network.
+- [DGX SuperPOD H100 reference architecture: Network Fabrics](https://docs.nvidia.com/dgx-superpod/reference-architecture-scalable-infrastructure-h100/latest/network-fabrics.html):
+  the connection between the out-of-band network and the in-band network.
+- [NetQ: Install NetQ Agents](https://docs.nvidia.com/networking-ethernet-software/cumulus-netq-49/Installation-Management/Install-NetQ/Install-NetQ-Agents/):
+  the NetQ Agent on a switch connects to the NetQ server through the management VRF.
+- [UFM Enterprise: UFM Communication Requirements](https://networking-docs.nvidia.com/ufmenterpriseum/6.26.1/ufm-communication-requirements):
+  the UFM server manages InfiniBand switches over the out-of-band management network.

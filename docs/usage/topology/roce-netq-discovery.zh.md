@@ -1,6 +1,6 @@
-# NetQ 导入
+# RoCE 网络中 NVIDIA NetQ 发现
 
-English version: [netq-import.md](./netq-import.md)
+English version: [roce-netq-discovery.md](./roce-netq-discovery.md)
 
 ## 简介
 
@@ -9,7 +9,7 @@ fabric,并且已经掌握完整拓扑。NetQ 还包含 NVLink 管理功能(原 N
 提供多节点 NVLink 系统的 NVLink 域。
 
 Unifabric 通过 NVIDIA Topograph 从 NetQ 导入拓扑。Topograph 是 NVIDIA 开源的服务。
-它从厂商数据源读取网络拓扑,并写入 Node label。本文说明如何配置 NetQ 导入。
+它从厂商数据源读取网络拓扑,并写入 Node label。本文说明如何配置 RoCE 网络中 NVIDIA NetQ 发现。
 
 | 项目 | 说明 |
 | --- | --- |
@@ -27,7 +27,7 @@ Unifabric 通过 NVIDIA Topograph 从 NetQ 导入拓扑。Topograph 是 NVIDIA �
   [可选:补充 Switch 资源](#可选补充-switch-资源)。
 - Unifabric 暂不支持在从 NetQ 导入的拓扑中区分 Scale-out 网络和 Storage 网络。导入
   结果只作为 Scale-out 网络。如果 Storage 网络运行在 Spectrum 交换机上,为它使用
-  [LLDP 发现](./lldp-discovery.zh.md)或[自定义拓扑](./custom-topology.zh.md)。
+  [RoCE 网络中 LLDP 发现](./roce-lldp-discovery.zh.md)或[自定义网络拓扑](./custom-network-topology.zh.md)。
 
 各网络在不同网络设备下应选择哪种发现方式,参见
 [网络拓扑发现](./README.zh.md#按网络选择发现方式)。
@@ -113,7 +113,7 @@ label 的含义,以及 `Topology` 资源的查看方法,参见
 ## 可选:补充 Switch 资源
 
 本方式不创建 `Switch` 资源。如果需要拓扑可视化显示交换机,参见
-[为 Topograph 场景补充 Switch 资源](./topograph-switch-resources.zh.md)。
+[创建 Switch 实例](./topograph-switch-resources.zh.md)。
 
 ## 故障排查
 
@@ -131,8 +131,8 @@ label 的含义,以及 `Topology` 资源的查看方法,参见
 ## 参考
 
 - [网络拓扑发现](./README.zh.md):如何为各网络选择发现方式,以及如何查看结果。
-- [InfiniBand 发现](./infiniband-discovery.zh.md):另一种同样使用 NVIDIA Topograph
+- [InfiniBand 网络发现](./infiniband-discovery.zh.md):另一种同样使用 NVIDIA Topograph
   的发现方式。
-- [为 Topograph 场景补充 Switch 资源](./topograph-switch-resources.zh.md):可选步骤。
+- [创建 Switch 实例](./topograph-switch-resources.zh.md):可选步骤。
 - [Topograph NetQ provider](https://github.com/dsx-ai-factory/topograph/blob/main/docs/providers/netq.md):
   上游文档。

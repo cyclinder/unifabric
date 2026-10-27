@@ -1,10 +1,10 @@
-# LLDP 发现
+# RoCE 网络中 LLDP 发现
 
-English version: [lldp-discovery.md](./lldp-discovery.md)
+English version: [roce-lldp-discovery.md](./roce-lldp-discovery.md)
 
 ## 简介
 
-LLDP 是一种协议。设备用它向链路对端的设备通告自己的身份和端口。LLDP 发现由两部分
+LLDP 是一种协议。设备用它向链路对端的设备通告自己的身份和端口。RoCE 网络中 LLDP 发现由两部分
 组成:
 
 - 每个节点上的 Unifabric Agent 读取每张 RDMA 网卡的 LLDP 邻居,得到节点到 leaf
@@ -24,7 +24,7 @@ switch-agent,以及如何在 Kubernetes 中登记交换机。
 | 集群侧要求 | 运行 `unifabric-controller` 的节点能访问交换机管理 IP 的 TCP `8090` 端口。 |
 | Helm 配置 | `topoDiscovery.scaleOut.mode=unifabric-roce` 或 `topoDiscovery.storage.mode=unifabric-roce`,两者都是默认值。Storage 网络还需要网卡 selector。参见[基础安装](../../getting-started.zh.md#安装)。 |
 
-如果安全策略不允许在交换机上运行软件,改用[自定义拓扑](./custom-topology.zh.md)。
+如果安全策略不允许在交换机上运行软件,改用[自定义网络拓扑](./custom-network-topology.zh.md)。
 如果交换机 OS 没有 Docker 也没有 Linux shell,也改用它。
 
 > 注意: NVIDIA Spectrum 交换机运行的 Cumulus Linux 支持 LLDP 和 Docker。因此理论上
@@ -38,19 +38,63 @@ switch-agent,以及如何在 Kubernetes 中登记交换机。
 - 已按[基础安装](../../getting-started.zh.md)完成部署,并且 `topoDiscovery.scaleOut.mode`
   或 `topoDiscovery.storage.mode` 为 `unifabric-roce`。
 - 每台交换机已启用 LLDP。在交换机上执行下面的命令。leaf 必须看到节点和 spine。spine
-  必须看到所有 leaf 交换机:
+  必须看到所有 leaf 交换机。下面的示例是 `leaf1` 上的输出:
 
   ```bash
-  lldpcli show neighbors -f json0
+  lldpcli show neighbors summary
   ```
 
   ```text
-  <!-- TODO: 待真实环境采集输出 -->
+  -------------------------------------------------------------------------------
+  LLDP neighbors:
+  -------------------------------------------------------------------------------
+  Interface:    Ethernet0, via: LLDP
+    Chassis:
+      ChassisID:    mac ee:e0:c1:36:71:78
+      SysName:      node1
+    Port:
+      PortID:       mac ee:e0:c1:36:71:78
+      PortDescr:    eth1
+      TTL:          120
+  -------------------------------------------------------------------------------
+  Interface:    Ethernet48, via: LLDP
+    Chassis:
+      ChassisID:    mac 4a:c8:80:d5:14:63
+      SysName:      spine1
+    Port:
+      PortID:       mac 4a:c8:80:d5:14:63
+      PortDescr:    Ethernet0
+      TTL:          120
+  -------------------------------------------------------------------------------
   ```
 
 - 运行 `unifabric-controller` 的 Kubernetes Node 能访问每台交换机管理 IP 的 TCP `8090`
-  端口。管理 IP 通常在带外管理网络。确认交换机的防火墙或 ACL 允许来自 Controller
-  节点的 `8090` 端口入站连接。同时确认 Controller 节点的防火墙允许到交换机的出站连接。
+  端口。管理 IP 是 `Switch` 资源的 `spec.mgmtIP`,填写交换机管理口所在的带外管理网络
+  地址。
+
+  Controller Pod 不使用 host network,它的流量从所在节点的默认路由发出。在 AI 集群中,
+  节点的默认路由通常在服务器的管理网络上,而交换机管理口在另一张带外管理网络上。所以
+  需要满足以下条件:
+  - 服务器的管理网络与交换机的带外管理网络之间有路由。这与 NVIDIA NetQ、UFM 等网络
+    管理软件的要求相同:它们的服务器也必须能访问交换机的带外管理网络。各代架构打通
+    这条路由的方式不同。例如在 NVIDIA DGX SuperPOD GB200 中,带内网络有一个专用
+    网段让管理节点访问带外设备。在 GB300 和 Vera Rubin 中,带外网络可以是物理独立的
+    网络,通过自己的上联或路由泄露与其他网络互通。部署前请向网络管理员确认该路由。
+    参见[参考](#参考)中的 NVIDIA 文档。
+  - 如果只有部分节点能访问交换机的带外管理网络,例如 Kubernetes 管理节点,用 Helm
+    value `controller.nodeSelector`、`controller.tolerations` 或 `controller.affinity`
+    把 Controller 调度到这些节点上。
+  - 交换机的防火墙或 ACL 允许来自 Controller 节点的 `8090` 端口入站连接。Controller
+    节点的防火墙允许到交换机的出站连接。
+
+  在运行 Controller 的节点上用下面的命令确认连通性:
+
+  ```bash
+  nc -zv <交换机管理 IP> 8090
+  ```
+
+  Controller 用固定的证书校验 switch-agent,不校验证书中的 IP 地址,所以更换管理 IP
+  不需要重新生成证书。
 - 有一台配置好 `kubectl` 上下文的主机用于导出 mTLS 证书。
 
 ## 操作步骤
@@ -121,16 +165,30 @@ docker logs --tail 100 unifabric-switch-agent
 ```
 
 ```text
-<!-- TODO: 待真实环境采集输出 -->
+7df6e0a82fb9   ghcr.io/unifabric-io/unifabric-switch-agent:v0.4.2   "/usr/bin/unifabric/…"   2 minutes ago   Up 2 minutes   0.0.0.0:8090->8090/tcp, [::]:8090->8090/tcp   unifabric-switch-agent
+{"time":"2026-10-20T08:15:02.114702361Z","level":"INFO","source":{"function":"main.main","file":"/unifabric/cmd/switch-agent/main.go","line":20},"msg":"load switch-agent config","source":"env"}
+{"time":"2026-10-20T08:15:02.115380925Z","level":"INFO","source":{"function":"main.main","file":"/unifabric/cmd/switch-agent/main.go","line":44},"msg":"start switch agent"}
+{"time":"2026-10-20T08:15:02.117264118Z","level":"INFO","source":{"function":"github.com/unifabric-io/unifabric/pkg/switchagent.(*Agent).Start","file":"/unifabric/pkg/switchagent/agent.go","line":88},"msg":"start switch agent","switchName":"leaf1","listenAddress":":8090","mtlsEnabled":true,"lldpRefreshInterval":"10s","lldpCollectionMode":"socket","lldpSocketPath":"/run/lldpd.socket","lldpCLIVersion":"1.0.16"}
 ```
 
-默认部署不可用时,使用下面三种部署方式之一:
+默认部署不可用,或需要批量部署时,按下面三个相互独立的选择确定部署方式:
 
-| 部署方式 | 适用条件 |
-| --- | --- |
-| 方式一:部署脚本 | 交换机运行 Docker,并且需要从一台管理机部署多台交换机。 |
-| 方式二:`hostProc` 模式容器 | 交换机运行 Docker,但交换机 OS 不暴露 `/run/lldpd.socket`,或 socket 权限阻止容器访问。 |
-| 方式三:systemd 服务 | 交换机无法运行 Docker 或其他容器运行时。 |
+- 运行方式:交换机能运行 Docker 时,以容器运行。不能运行 Docker 时,以 systemd
+  服务运行。
+- LLDP 采集模式,仅容器方式需要选择:`socket` 模式挂载宿主机的 `/run/lldpd.socket`,
+  不需要特权,是默认模式。`hostProc` 模式不需要该 socket,但需要 `--privileged`、
+  host network、host UTS 和宿主机 `/proc`。
+- 下发方式:在每台交换机上手工执行命令,或用部署脚本从一台管理机批量部署。部署
+  脚本支持上面两种 LLDP 采集模式,由 `LLDP_COLLECTION_MODE` 选择。
+
+| 运行方式 | LLDP 采集模式 | 交换机要求 | 手工逐台部署 | 脚本批量部署 |
+| --- | --- | --- | --- | --- |
+| 容器 | `socket` (默认) | 有 Docker。宿主机暴露 `/run/lldpd.socket`,并允许挂载进容器。 | 上面的默认部署 | [方式一](#部署方式一-使用脚本批量部署多台交换机),`LLDP_COLLECTION_MODE=socket` |
+| 容器 | `hostProc` | 有 Docker。允许以 `--privileged`、host network 和 host UTS 运行容器。 | [方式二](#部署方式二-以-hostproc-模式运行容器) | [方式一](#部署方式一-使用脚本批量部署多台交换机),`LLDP_COLLECTION_MODE=hostProc` |
+| systemd 服务 | 直接调用本地 `lldpcli` | 没有 Docker。已安装 `lldpcli`。 | [方式三](#部署方式三-安装为-systemd-服务) | 不支持 |
+
+优先选择 `socket` 模式,它的权限面最小。只有交换机 OS 不暴露 `/run/lldpd.socket`,
+或 socket 权限阻止容器访问时,才选择 `hostProc` 模式。
 
 #### 部署方式一: 使用脚本批量部署多台交换机
 
@@ -168,7 +226,7 @@ docker logs --tail 100 unifabric-switch-agent
    ```
 
    ```text
-   <!-- TODO: 待真实环境采集输出 -->
+   srwxrwx--- 1 _lldpd _lldpd 0 Oct 20 08:10 /run/lldpd.socket
    ```
 
    权限串的第一个字符必须是 `s`,表示 Unix socket。显式设置模式和 socket 路径:
@@ -205,7 +263,16 @@ docker logs --tail 100 unifabric-switch-agent
    ```
 
    ```text
-   <!-- TODO: 待真实环境采集输出 -->
+   Deploying switch-agent to your-ssh-user@192.0.2.11
+   3f1c9d2e8b7a6f04d2c18e95b7a3f6c0d1e2b4a5968c7d3e1f0a2b4c6d8e9f01
+   Completed: 192.0.2.11
+   Deploying switch-agent to your-ssh-user@192.0.2.12
+   b82d4e6f1a3c5097e8d2b4f6a1c3e5d7092b4d6f8a1c3e5b7d9f1a3c5e7b9d02
+   Completed: 192.0.2.12
+   Deploying switch-agent to your-ssh-user@192.0.2.21
+   c5e7a9b1d3f5072e4c6a8b0d2f4e6a8c0b2d4f6e8a0c2b4d6f8e0a2c4b6d8f03
+   Completed: 192.0.2.21
+   switch-agent deployed on 3 switch(es) with socket LLDP collection.
    ```
 
    > 注意: SSH 密钥只认证登录。脚本仍会执行远程 `sudo` 来安装证书和操作 Docker。
@@ -225,7 +292,17 @@ docker logs --tail 100 unifabric-switch-agent
    ```
 
    ```text
-   <!-- TODO: 待真实环境采集输出 -->
+   SSH password for your-ssh-user:
+   Deploying switch-agent to your-ssh-user@192.0.2.11
+   3f1c9d2e8b7a6f04d2c18e95b7a3f6c0d1e2b4a5968c7d3e1f0a2b4c6d8e9f01
+   Completed: 192.0.2.11
+   Deploying switch-agent to your-ssh-user@192.0.2.12
+   b82d4e6f1a3c5097e8d2b4f6a1c3e5d7092b4d6f8a1c3e5b7d9f1a3c5e7b9d02
+   Completed: 192.0.2.12
+   Deploying switch-agent to your-ssh-user@192.0.2.21
+   c5e7a9b1d3f5072e4c6a8b0d2f4e6a8c0b2d4f6e8a0c2b4d6f8e0a2c4b6d8f03
+   Completed: 192.0.2.21
+   switch-agent deployed on 3 switch(es) with socket LLDP collection.
    ```
 
    > 注意: 密码模式假设 SSH 密码同时是 sudo 密码。如果两者不同,运行前单独设置
@@ -257,7 +334,11 @@ docker logs --tail 100 unifabric-switch-agent
    ```
 
    ```text
-   <!-- TODO: 待真实环境采集输出 -->
+   CONTAINER ID   IMAGE                                                COMMAND                  CREATED         STATUS         PORTS                                         NAMES
+   3f1c9d2e8b7a   ghcr.io/unifabric-io/unifabric-switch-agent:v0.4.2   "/usr/bin/unifabric/…"   5 minutes ago   Up 5 minutes   0.0.0.0:8090->8090/tcp, [::]:8090->8090/tcp   unifabric-switch-agent
+   {"time":"2026-10-20T08:15:02.114702361Z","level":"INFO","source":{"function":"main.main","file":"/unifabric/cmd/switch-agent/main.go","line":20},"msg":"load switch-agent config","source":"env"}
+   {"time":"2026-10-20T08:15:02.115380925Z","level":"INFO","source":{"function":"main.main","file":"/unifabric/cmd/switch-agent/main.go","line":44},"msg":"start switch agent"}
+   {"time":"2026-10-20T08:15:02.117264118Z","level":"INFO","source":{"function":"github.com/unifabric-io/unifabric/pkg/switchagent.(*Agent).Start","file":"/unifabric/pkg/switchagent/agent.go","line":88},"msg":"start switch agent","switchName":"leaf1","listenAddress":":8090","mtlsEnabled":true,"lldpRefreshInterval":"10s","lldpCollectionMode":"socket","lldpSocketPath":"/run/lldpd.socket","lldpCLIVersion":"1.0.16"}
    ```
 
 #### 部署方式二: 以 hostProc 模式运行容器
@@ -300,10 +381,6 @@ switch-agent 镜像内的 CLI 二进制。该模式不读取
      /usr/bin/unifabric/switch-agent
    ```
 
-   ```text
-   <!-- TODO: 待真实环境采集输出 -->
-   ```
-
    > 警告: 容器以 `--privileged`、host network、host UTS 和宿主机 `/proc` 运行。
    > 如果交换机 OS 能稳定暴露 `/run/lldpd.socket`,改用
    > [步骤 2](#步骤-2在交换机上运行-switch-agent) 中的默认部署。它的权限面更小。
@@ -316,7 +393,10 @@ switch-agent 镜像内的 CLI 二进制。该模式不读取
    ```
 
    ```text
-   <!-- TODO: 待真实环境采集输出 -->
+   9a4e7b10c3d5   ghcr.io/unifabric-io/unifabric-switch-agent:v0.4.2   "/usr/bin/unifabric/…"   2 minutes ago   Up 2 minutes             unifabric-switch-agent
+   {"time":"2026-10-20T08:15:02.114702361Z","level":"INFO","source":{"function":"main.main","file":"/unifabric/cmd/switch-agent/main.go","line":20},"msg":"load switch-agent config","source":"env"}
+   {"time":"2026-10-20T08:15:02.115380925Z","level":"INFO","source":{"function":"main.main","file":"/unifabric/cmd/switch-agent/main.go","line":44},"msg":"start switch agent"}
+   {"time":"2026-10-20T08:15:02.117264118Z","level":"INFO","source":{"function":"github.com/unifabric-io/unifabric/pkg/switchagent.(*Agent).Start","file":"/unifabric/pkg/switchagent/agent.go","line":88},"msg":"start switch agent","switchName":"leaf1","listenAddress":":8090","mtlsEnabled":true,"lldpRefreshInterval":"10s","lldpCollectionMode":"hostProc","lldpSocketPath":"/run/lldpd.socket","lldpCLIVersion":"1.0.16"}
    ```
 
 #### 部署方式三: 安装为 systemd 服务
@@ -347,7 +427,7 @@ switch-agent 镜像内的 CLI 二进制。该模式不读取
    ```
 
    ```text
-   <!-- TODO: 待真实环境采集输出 -->
+   unifabric-switch-agent_v0.4.2_linux_amd64.tar.gz: OK
    ```
 
 2. 把导出的 mTLS 文件安装到 `/etc/unifabric/switch-mtls`:
@@ -389,12 +469,15 @@ switch-agent 镜像内的 CLI 二进制。该模式不读取
 5. 确认服务在运行并且日志没有错误:
 
    ```bash
-   systemctl status unifabric-switch-agent
+   systemctl is-active unifabric-switch-agent
    journalctl -u unifabric-switch-agent -n 100 --no-pager
    ```
 
    ```text
-   <!-- TODO: 待真实环境采集输出 -->
+   active
+   Oct 20 08:20:11 leaf1 unifabric-switch-agent[2817]: {"time":"2026-10-20T08:20:11.114702361Z","level":"INFO","source":{"function":"main.main","file":"github.com/unifabric-io/unifabric/cmd/switch-agent/main.go","line":20},"msg":"load switch-agent config","source":"env"}
+   Oct 20 08:20:11 leaf1 unifabric-switch-agent[2817]: {"time":"2026-10-20T08:20:11.115380925Z","level":"INFO","source":{"function":"main.main","file":"github.com/unifabric-io/unifabric/cmd/switch-agent/main.go","line":44},"msg":"start switch agent"}
+   Oct 20 08:20:11 leaf1 unifabric-switch-agent[2817]: {"time":"2026-10-20T08:20:11.117264118Z","level":"INFO","source":{"function":"github.com/unifabric-io/unifabric/pkg/switchagent.(*Agent).Start","file":"github.com/unifabric-io/unifabric/pkg/switchagent/agent.go","line":88},"msg":"start switch agent","switchName":"leaf1","listenAddress":":8090","mtlsEnabled":true,"lldpRefreshInterval":"10s","lldpCollectionMode":"socket","lldpSocketPath":"/run/lldpd.socket","lldpCLIVersion":"1.0.16"}
    ```
 
 ### 步骤 3:创建 Switch 资源
@@ -432,7 +515,7 @@ EOF
 > Controller 用 `Switch.status.hostname` 把交换机侧数据与节点 LLDP 发现的 hostname 关联。
 
 > 不要给同 role 的任何 `Switch` 添加 `unifabric.io/switch-neighbors` annotation。该
-> annotation 会选择[自定义拓扑](./custom-topology.zh.md)。
+> annotation 会选择[自定义网络拓扑](./custom-network-topology.zh.md)。
 
 ## 验证
 
@@ -501,10 +584,26 @@ systemd 服务仍然失败。这时,确认 service 文件的 `PATH` 行包含 `l
 ## 参考
 
 - [网络拓扑发现](./README.zh.md):发现方式与结果查看。
-- [自定义拓扑](./custom-topology.zh.md):不运行 switch-agent,改为声明交换机邻居。
+- [自定义网络拓扑](./custom-network-topology.zh.md):不运行 switch-agent,改为声明交换机邻居。
 - [Switch 参考](../../reference/switch.zh.md):`Switch` 资源的 `spec` 与 `status`
   字段。
 - [Scale-out 拓扑设计](../../design/scaleout-topology.zh.md):Controller 如何使用
   交换机侧 LLDP 快照。
 - [deploy-switch-agent.sh](../../../tools/deploy-switch-agent/deploy-switch-agent.sh):
   批量部署脚本。
+
+以下 NVIDIA 文档说明了 AI 集群中的管理网络规划,以及网络管理软件对交换机带外管理
+网络的访问要求:
+
+- [DGX SuperPOD GB200 参考架构:Network Fabrics](https://docs.nvidia.com/dgx-superpod/reference-architecture-scalable-infrastructure-gb200/latest/network-fabrics.html):
+  带内网络中专用于访问带外设备的网段。
+- [DGX SuperPOD GB300 参考架构 (PDF)](https://docs.nvidia.com/pdf/dgx-spod-gb300-ra.pdf):
+  独立的带外网络,以及带外网络的上联与路由泄露。
+- [DGX SuperPOD Spectrum-X 参考架构:Vera Rubin NVL72 (PDF)](https://docs.nvidia.com/dgx-superpod-spectrum-x-reference-architecture-with-dgx-vera-rubin-nvl72.pdf):
+  带外网络中的交换机管理网络。
+- [DGX SuperPOD H100 参考架构:Network Fabrics](https://docs.nvidia.com/dgx-superpod/reference-architecture-scalable-infrastructure-h100/latest/network-fabrics.html):
+  带外网络与带内网络互通。
+- [NetQ:Install NetQ Agents](https://docs.nvidia.com/networking-ethernet-software/cumulus-netq-49/Installation-Management/Install-NetQ/Install-NetQ-Agents/):
+  交换机上的 NetQ Agent 通过管理 VRF 连接 NetQ 服务器。
+- [UFM Enterprise:UFM Communication Requirements](https://networking-docs.nvidia.com/ufmenterpriseum/6.26.1/ufm-communication-requirements):
+  UFM 服务器通过带外管理网络管理 InfiniBand 交换机。

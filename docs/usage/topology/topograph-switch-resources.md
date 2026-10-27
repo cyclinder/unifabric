@@ -1,11 +1,11 @@
-# Add Switch Resources for Topograph Scenarios
+# Create Switch Instances
 
 中文版: [topograph-switch-resources.zh.md](./topograph-switch-resources.zh.md)
 
 ## Introduction
 
 In the NVIDIA Spectrum-X and InfiniBand scenarios, NVIDIA Topograph produces the
-Node labels and the `Topology` resource. The LLDP discovery of Unifabric takes
+Node labels and the `Topology` resource. Unifabric LLDP discovery in RoCE networks takes
 no part, so the cluster has no `Switch` resources. In the `Topology` resource,
 the `switchMember` list of each performance domain is empty. In topology
 visualization, the switch member card of each domain is also empty. Scheduling
@@ -19,8 +19,8 @@ performance domain. This step is optional.
 
 ## Prerequisites
 
-- You completed the configuration in [NetQ import](./netq-import.md) or
-  [InfiniBand discovery](./infiniband-discovery.md), and
+- You completed the configuration in [NVIDIA NetQ discovery in RoCE networks](./roce-netq-discovery.md) or
+  [InfiniBand network discovery](./infiniband-discovery.md), and
   `kubectl get nodes -L scale-out.unifabric.io/tier-1` shows topology labels.
 - You know which performance domain each switch belongs to. For example, the NetQ
   output or the `ibnetdiscover` output shows which leaf domain contains `leaf1`.
@@ -87,7 +87,7 @@ See [Topology visualization](./topology-visualization.md).
 
 ## References
 
-- [NetQ import](./netq-import.md), [InfiniBand discovery](./infiniband-discovery.md):
+- [NVIDIA NetQ discovery in RoCE networks](./roce-netq-discovery.md), [InfiniBand network discovery](./infiniband-discovery.md):
   the discovery methods that use this step.
 - [Switch reference](../../reference/switch.md): the fields of the `Switch`
   resource.

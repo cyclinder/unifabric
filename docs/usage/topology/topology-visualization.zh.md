@@ -53,7 +53,13 @@ Grafana 时,使用外部实例。
    ```
 
    ```text
-   <!-- TODO: 待真实环境采集输出 -->
+   Release "unifabric" has been upgraded. Happy Helming!
+   NAME: unifabric
+   LAST DEPLOYED: Mon Oct 20 08:30:12 2026
+   NAMESPACE: unifabric-system
+   STATUS: deployed
+   REVISION: 2
+   TEST SUITE: None
    ```
 
    Chart 会创建 `Grafana`、`GrafanaDatasource` 和 `GrafanaDashboard`。数据源连接
@@ -73,7 +79,10 @@ Grafana 时,使用外部实例。
    ```
 
    ```text
-   <!-- TODO: 待真实环境采集输出 -->
+   NAME                        TYPE       CLUSTER-IP     EXTERNAL-IP   PORT(S)          AGE
+   unifabric-grafana-service   NodePort   10.96.152.31   <none>        3000:31873/TCP   2m
+   GF_SECURITY_ADMIN_PASSWORD: q3Zk8Vb2nXw9tA==
+   GF_SECURITY_ADMIN_USER: admin
    ```
 
 3. 在浏览器中打开 `http://<节点 IP>:<NodePort>`,登录后搜索并打开
@@ -92,7 +101,13 @@ Grafana 时,使用外部实例。
    ```
 
    ```text
-   <!-- TODO: 待真实环境采集输出 -->
+   Release "unifabric" has been upgraded. Happy Helming!
+   NAME: unifabric
+   LAST DEPLOYED: Mon Oct 20 08:30:12 2026
+   NAMESPACE: unifabric-system
+   STATUS: deployed
+   REVISION: 2
+   TEST SUITE: None
    ```
 
    Chart 会创建 `GrafanaDatasource` 和 `GrafanaDashboard`,并通过
@@ -179,7 +194,6 @@ Storage 域位于 Node 行下方。
 连线与物理网络一致时,验证通过。
 
 ![预期的仪表盘效果](../../images/topology-visualization.png)
-<!-- TODO: 待真实环境采集截图 -->
 
 ## 故障排查
 

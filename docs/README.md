@@ -47,7 +47,7 @@ For other Chart parameters, see the defaults and descriptions in the
   flows with eBPF, publish `RDMAEndpoint`, and store per-send events.
 - [Use the Node labels in a scheduler](./usage/topology/README.md#use-the-node-labels-in-a-scheduler):
   topology-aware scheduling with Kueue TAS and similar schedulers.
-- [Switch Agent deployment](./usage/topology/lldp-discovery.md): deploy the Switch
+- [Switch Agent deployment](./usage/topology/roce-lldp-discovery.md): deploy the Switch
   Agent on SONiC switches.
 
 ## Reference

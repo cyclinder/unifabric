@@ -94,11 +94,11 @@ helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
 ## 其他网络环境
 
 默认安装面向 SONiC RoCE 网络,并使用
-[LLDP 发现](./usage/topology/lldp-discovery.zh.md)。如果集群使用其他网络设备,
+[RoCE 网络中 LLDP 发现](./usage/topology/roce-lldp-discovery.zh.md)。如果集群使用其他网络设备,
 保持相同的安装流程。只修改对应发现方式的拓扑发现参数:
 
-- InfiniBand 网络:参见 [InfiniBand 发现](./usage/topology/infiniband-discovery.zh.md)。
-- 由 NetQ 管理的 Spectrum-X 网络:参见 [NetQ 导入](./usage/topology/netq-import.zh.md)。
+- InfiniBand 网络:参见 [InfiniBand 网络发现](./usage/topology/infiniband-discovery.zh.md)。
+- 由 NetQ 管理的 Spectrum-X 网络:参见 [RoCE 网络中 NVIDIA NetQ 发现](./usage/topology/roce-netq-discovery.zh.md)。
 
 各网络在不同网络设备下应选择哪种发现方式,参见
 [网络拓扑发现](./usage/topology/README.zh.md#按网络选择发现方式)。

@@ -1,6 +1,6 @@
-# NetQ Import
+# NVIDIA NetQ Discovery in RoCE Networks
 
-中文版: [netq-import.zh.md](./netq-import.zh.md)
+中文版: [roce-netq-discovery.zh.md](./roce-netq-discovery.zh.md)
 
 ## Introduction
 
@@ -11,8 +11,8 @@ NVLink domains of a multi-node NVLink system.
 
 Unifabric imports the topology from NetQ through NVIDIA Topograph. Topograph is
 an NVIDIA open-source service. It reads the network topology from vendor data
-sources and writes Node labels. This document tells you how to configure NetQ
-import.
+sources and writes Node labels. This document tells you how to configure NVIDIA NetQ
+discovery in RoCE networks.
 
 | Item | Description |
 | --- | --- |
@@ -32,7 +32,7 @@ Limits:
 - Unifabric does not yet separate the Scale-out network and the Storage network
   in the topology that it imports from NetQ. The import result is used only as
   the Scale-out network. If the Storage network runs on Spectrum switches, use
-  [LLDP discovery](./lldp-discovery.md) or [Custom topology](./custom-topology.md)
+  [LLDP discovery in RoCE networks](./roce-lldp-discovery.md) or [Custom network topology](./custom-network-topology.md)
   for it.
 
 For the discovery method to use for each network on each network device, see
@@ -124,7 +124,7 @@ For the meaning of the labels and for how to view the `Topology` resources, see
 
 This method does not create `Switch` resources. If you want topology
 visualization to show the switches, see
-[Add Switch resources for Topograph](./topograph-switch-resources.md).
+[Create Switch instances](./topograph-switch-resources.md).
 
 ## Troubleshooting
 
@@ -144,9 +144,9 @@ visualization to show the switches, see
 
 - [Network topology discovery](./README.md): how to choose a discovery method
   for each network, and how to view the results.
-- [InfiniBand discovery](./infiniband-discovery.md): a different discovery
+- [InfiniBand network discovery](./infiniband-discovery.md): a different discovery
   method that also uses NVIDIA Topograph.
-- [Add Switch resources for Topograph](./topograph-switch-resources.md): an
+- [Create Switch instances](./topograph-switch-resources.md): an
   optional step.
 - [Topograph NetQ provider](https://github.com/dsx-ai-factory/topograph/blob/main/docs/providers/netq.md):
   the upstream document.

@@ -1,4 +1,4 @@
-# InfiniBand Discovery
+# InfiniBand Network Discovery
 
 中文版: [infiniband-discovery.zh.md](./infiniband-discovery.zh.md)
 
@@ -10,7 +10,7 @@ uses the `infiniband-k8s` provider of NVIDIA Topograph. Topograph runs
 `ibnetdiscover` in a Pod on the GPU nodes. It reads the switches, the HCAs, and
 the links in the IB subnet. For the Scale-up network, Topograph reads the
 `nvidia.com/gpu.clique` label that the GPU Operator writes on each node. This
-document tells you how to configure InfiniBand discovery.
+document tells you how to configure InfiniBand network discovery.
 
 | Item | Description |
 | --- | --- |
@@ -31,9 +31,9 @@ Limits:
   card of each performance domain is empty. See
   [Optional: add Switch resources](#optional-add-switch-resources).
 - Unifabric does not yet separate the Scale-out network and the Storage network
-  in the topology that InfiniBand discovery finds. The discovery result is used
+  in the topology that InfiniBand network discovery finds. The discovery result is used
   only as the Scale-out network. If the Storage network is Ethernet, use
-  [LLDP discovery](./lldp-discovery.md) or [Custom topology](./custom-topology.md)
+  [LLDP discovery in RoCE networks](./roce-lldp-discovery.md) or [Custom network topology](./custom-network-topology.md)
   for it. If the Storage network is InfiniBand, topology discovery is not
   supported for it now.
 - The NVLink domains of the Scale-up network need a successful `ibnetdiscover`
@@ -94,7 +94,7 @@ For the meaning of the labels and for how to view the `Topology` resources, see
 
 This method does not create `Switch` resources. If you want topology
 visualization to show the switches, see
-[Add Switch resources for Topograph](./topograph-switch-resources.md).
+[Create Switch instances](./topograph-switch-resources.md).
 
 ## Troubleshooting
 
@@ -113,9 +113,9 @@ visualization to show the switches, see
 
 - [Network topology discovery](./README.md): how to choose a discovery method
   for each network, and how to view the results.
-- [NetQ import](./netq-import.md): a different discovery method that also uses
+- [NVIDIA NetQ discovery in RoCE networks](./roce-netq-discovery.md): a different discovery method that also uses
   NVIDIA Topograph.
-- [Add Switch resources for Topograph](./topograph-switch-resources.md): an
+- [Create Switch instances](./topograph-switch-resources.md): an
   optional step.
 - [Topograph InfiniBand provider](https://github.com/dsx-ai-factory/topograph/blob/main/docs/providers/infiniband.md):
   the upstream document.

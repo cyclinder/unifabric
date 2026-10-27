@@ -106,12 +106,12 @@ helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
 ## Other Network Environments
 
 The default installation is for a SONiC RoCE network and uses
-[LLDP discovery](./usage/topology/lldp-discovery.md). If the cluster uses a
+[LLDP discovery in RoCE networks](./usage/topology/roce-lldp-discovery.md). If the cluster uses a
 different network device, keep the same installation flow. Change only the
 topology discovery parameters for the matching discovery method:
 
-- InfiniBand network: see [InfiniBand discovery](./usage/topology/infiniband-discovery.md).
-- Spectrum-X network that NetQ manages: see [NetQ import](./usage/topology/netq-import.md).
+- InfiniBand network: see [InfiniBand network discovery](./usage/topology/infiniband-discovery.md).
+- Spectrum-X network that NetQ manages: see [NVIDIA NetQ discovery in RoCE networks](./usage/topology/roce-netq-discovery.md).
 
 For the discovery method to use for each network on each network device, see
 [Network topology discovery](./usage/topology/README.md#choose-a-discovery-method-by-network).
