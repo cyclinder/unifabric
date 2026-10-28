@@ -111,8 +111,7 @@ SONiC RoCE 网络，也支持 InfiniBand 和 NVIDIA Spectrum-X 两种环境。
 
 - 拓扑识别与可视化：[拓扑可视化](./docs/usage/topology-visualization.zh.md)
 - 拓扑感知调度：[Kueue / Volcano / KAI 调度集成](./docs/usage/workload-tas.zh.md)
-- RDMA 指标观测：[RDMA 指标](./docs/usage/rdma-metrics.zh.md)
-- RDMA 流归因：[RDMA 流归因](./docs/usage/rdma-flow.zh.md)
+- 高速网络流量观测：[高速网络流量观测](./docs/usage/traffic-observability/README.zh.md)
 - 交换机流量观测：[Switch Agent 部署](./docs/usage/switch-agent-deployment.zh.md)
 
 ## 路线图

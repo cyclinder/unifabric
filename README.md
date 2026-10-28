@@ -141,8 +141,7 @@ After installation, refer to the following guides for each feature:
 
 - Topology discovery and visualization: [topology visualization](./docs/usage/topology-visualization.md)
 - Topology-aware scheduling: [Kueue / Volcano / KAI scheduling integration](./docs/usage/workload-tas.md)
-- RDMA metrics observability: [RDMA metrics](./docs/usage/rdma-metrics.md)
-- RDMA flow attribution: [RDMA flow attribution](./docs/usage/rdma-flow.md)
+- High-speed network traffic observability: [High-speed network traffic observability](./docs/usage/traffic-observability/README.md)
 - Switch traffic observability: [Switch Agent deployment](./docs/usage/switch-agent-deployment.md)
 
 ## Roadmap
