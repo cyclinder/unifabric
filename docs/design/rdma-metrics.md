@@ -172,11 +172,12 @@ Matching checks `parent_ifname` first, then `ifname`. Supported selector forms a
 ### Kubernetes exposure
 
 The Agent metrics endpoint is configured by `agent.config.metrics.bindAddress`, with
-default `:8082`. The Helm chart can render an Agent metrics `Service`, a
-`ServiceMonitor`, and RDMA Grafana dashboards, gated by `nodeMetrics` and
-`grafanaDashboard` values. One implementation detail: the Go Agent always registers
-the RDMA collector when the Agent starts. `nodeMetrics.enabled` controls the Helm
-resources around scraping and dashboards, not collector registration inside the
+default `:8082`. The Helm chart can render an Agent metrics `Service` and RDMA Grafana
+dashboards, gated by `nodeMetrics` and `grafanaDashboard` values. It renders the Agent
+`ServiceMonitor` only when `agent.enabled`, `nodeMetrics.enabled`, and the global
+`serviceMonitor.enabled` are true. One implementation detail: the Go Agent always
+registers the RDMA collector when the Agent starts. `nodeMetrics.enabled` controls the
+Helm resources around scraping and dashboards, not collector registration inside the
 Agent. The enable steps and verification commands are in
 [RDMA metrics usage](../usage/rdma-metrics.md).
 

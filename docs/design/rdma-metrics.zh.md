@@ -153,8 +153,9 @@ host RDMA Pod 不复制 `rdma_device_tos`。
 ### Kubernetes 暴露
 
 Agent 指标端点由 `agent.config.metrics.bindAddress` 配置，默认 `:8082`。Helm chart 可以
-渲染 Agent 指标 `Service`、`ServiceMonitor` 和 RDMA Grafana 看板，由 `nodeMetrics` 和
-`grafanaDashboard` 值控制。一个实现细节：Go Agent 启动时总是注册 RDMA 采集器。
+渲染 Agent 指标 `Service` 和 RDMA Grafana 看板，由 `nodeMetrics` 和 `grafanaDashboard`
+值控制。只有 `agent.enabled`、`nodeMetrics.enabled` 和全局 `serviceMonitor.enabled` 都为
+true 时，才渲染 Agent `ServiceMonitor`。一个实现细节：Go Agent 启动时总是注册 RDMA 采集器。
 `nodeMetrics.enabled` 控制的是围绕抓取和看板的 Helm 资源，不控制 Agent 内部的采集器注册。
 启用步骤和验证命令见 [RDMA 指标使用指南](../usage/rdma-metrics.md)。
 
