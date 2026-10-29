@@ -12,14 +12,13 @@ This document tells you how to enable, verify, and troubleshoot eBPF-based RDMA 
 
 | Item | Description |
 | --- | --- |
-| Observation location | ② RDMA submit path |
 | Applicable networks | Scale-out, Storage |
 | Data source | eBPF uprobes on the submit path of `libibverbs` |
 | Observed object | CPU-initiated RDMA traffic |
-| Attribution levels | Source Pod and destination Pod, source device and destination device, and the top-level workloads of both ends |
-| Output | `rdma_flow_*` metrics, `RDMAEndpoint` resources, and the "RDMA send details (CPU initiated)" row in the Pod and AI Workload dashboards |
+| Dimensions | Source Pod and destination Pod, source device and destination device, and the jobs of both ends |
+| Output | `rdma_flow_*` metrics, `RDMAEndpoint` resources, and the "RDMA send details (CPU initiated)" row of the Pod and AI Workload dashboards in Grafana |
 | Node side requirements | Linux kernel 5.8 or later, with BPF ring buffer and uprobe support |
-| Helm configuration | `agent.ebpfFlow.enabled=true`. An InfiniBand network also needs `agent.ebpfFlow.endpoint.allPods=true` |
+| Default state | Disabled by default |
 
 The Agent rebuilds a flow in this way:
 
@@ -28,20 +27,7 @@ The Agent rebuilds a flow in this way:
 - Destination: the Agent finds the destination Pod from the destination address of the QP. A RoCE network uses the GID, that is, the Pod IP or MAC. An InfiniBand network uses the LID.
 - `RDMAEndpoint`: each Agent publishes the devices, GIDs, LIDs, and QPs of the RDMA Pods on its node. The Agents on other nodes use them to resolve the destination Pod.
 
-eBPF-based RDMA tracing exports these metrics:
-
-| Metric | Meaning | Requirement |
-| --- | --- | --- |
-| `rdma_flow_bytes_total` | The total bytes that one flow sent. | `agent.ebpfFlow.enabled=true` |
-| `rdma_flow_wrs_total` | The total WRs that one flow sent. | `agent.ebpfFlow.enabled=true` |
-| `rdma_flow_qps` | The number of active QPs of one flow now. | `agent.ebpfFlow.enabled=true` |
-| `rdma_flow_sends_total` | The total number of sends of one flow. | Also enable [RDMA send event storage](./rdma-flow-events.md) |
-| `rdma_flow_send_bytes` | The distribution of bytes per send (histogram). | Also enable [RDMA send event storage](./rdma-flow-events.md) |
-
-Each sample has these labels:
-`src_pod_namespace`, `src_pod_name`, `src_pod_top_owner_kind`, `src_pod_top_owner_namespace`, `src_pod_top_owner_name`,
-`dst_pod_namespace`, `dst_pod_name`, `dst_pod_top_owner_kind`, `dst_pod_top_owner_namespace`, `dst_pod_top_owner_name`,
-`src_device`, and `dst_device`.
+For the definitions of all metrics and labels, see the [metrics reference](../../reference/metrics.md#rdma-tracing-metrics).
 
 Limits:
 
@@ -50,7 +36,7 @@ Limits:
 - The Agent records the traffic on the side that submits the request. The source Pod of a flow is the Pod that submits the WR. For RDMA Read, the data actually goes from the destination Pod to the source Pod.
 - A flow whose source Pod or destination Pod is not resolved yet is not counted. After the Agent resolves it, it adds the earlier traffic in one step.
 
-eBPF-based RDMA tracing covers ② the RDMA submit path in the traffic observability scope. For the full scope and the observation methods of the other locations, see [High-speed network traffic observability](./README.md#traffic-observability-scope).
+This item is part of AI high-speed network traffic observability. For the full scope, see [AI high-speed network traffic observability](./README.md#traffic-observability-scope).
 
 ## Scope
 
@@ -89,7 +75,7 @@ Check the communication path that is actually in use.
 
 ## Prerequisites
 
-- You meet the prerequisites in [High-speed network traffic observability](./README.md#prerequisites).
+- You meet the prerequisites in [AI high-speed network traffic observability](./README.md#prerequisites).
 - The Linux kernel of the nodes is 5.8 or later, and supports BPF ring buffer and uprobe.
 - The application submits RDMA requests through the host `libibverbs` path. An application that only uses RDMA devices or GPU buffers is not always observable.
 
@@ -110,7 +96,7 @@ An InfiniBand network addresses the peer by LID, and the Agent cannot find the P
 With this setting, the Agent publishes an `RDMAEndpoint` for each RDMA Pod, and the Agents on other nodes use it to resolve the destination Pod.
 By default, the Agent publishes `RDMAEndpoint` resources only for hostNetwork Pods and for Pods that are not in the IP index yet. It resolves the other Pods by Pod IP.
 
-After you enable it, the Agent sums the data in the BPF maps into flow metrics every 5 seconds (`agent.ebpfFlow.reportInterval`).
+After you enable it, the Agent sums the data in the BPF maps into flow metrics every 5 seconds by default.
 This level does not make per-send events, and does not need a storage backend.
 If you need a record of each send and the distribution of message sizes, also configure [RDMA send event storage](./rdma-flow-events.md).
 
@@ -153,16 +139,52 @@ For all settings, see `agent.ebpfFlow.*` in the [Helm values reference](../../..
 
    <!-- TODO: capture output from a real environment -->
 
-4. In Grafana, open the Unifabric RDMA Pod dashboard or the Unifabric RDMA AI Workload dashboard, and expand the "RDMA send details (CPU initiated)" row.
-   The panels need this configuration:
+## View the results
 
-   | Panels | Configuration needed |
-   | --- | --- |
-   | Cumulative bytes sent, Cumulative WRs, Active QPs, Cumulative bytes from source Pod to destination Pods, Cumulative bytes by source Pod, Cumulative bytes by peer Pod, Workload outgoing flow details | The configuration in this document |
-   | Cumulative sends, Peer Pods in time range, Cumulative sends and size percentiles by source and destination Pod, Cumulative traffic by device pair | Also enable [RDMA send event storage](./rdma-flow-events.md) |
-   | Top 20 most common message sizes, Processes and QPs per source Pod, Latest send records | Also enable RDMA send event storage with the Elasticsearch backend |
+Open the Unifabric RDMA Pod dashboard or the Unifabric RDMA AI Workload dashboard in Grafana, and expand the "RDMA send details (CPU initiated)" row.
 
-   ![Unifabric RDMA Pod dashboard](../../images/pods.png)
+### Unifabric RDMA Pod
+
+Select a namespace and a Pod to see who this Pod talks to:
+
+- The total bytes sent, the total sends, the active QPs, and the number of peer Pods in the time range.
+- The total bytes from the source Pod to each destination Pod, and the total traffic between each pair of NICs.
+- The distribution of message sizes, and the most common message sizes.
+- The QPs of each process in the source Pod, and the latest send records.
+
+Use it to make sure that the peers and the message sizes of a Pod are as expected.
+The NIC throughput and error rows on the same dashboard come from [host and Pod RDMA NIC metrics](./rdma-metrics.md#unifabric-rdma-pod).
+Read the two parts together to find out where the traffic of a Pod goes, and if its NICs have congestion or errors.
+
+![Unifabric RDMA Pod dashboard](../../images/pods.png)
+
+### Unifabric RDMA AI Workload
+
+Select the kind, namespace, and name of a job, for example a `PyTorchJob`, to see the outgoing communication of this job:
+
+- The total bytes, WRs, sends, and active QPs of the job.
+- The bytes summed by source Pod and by peer Pod.
+- Each outgoing flow of the job: the source Pod, the destination Pod, and the NICs of both ends.
+
+Use it to find the Pod with the most communication in a job, and its peers.
+
+![Unifabric RDMA AI Workload dashboard](../../images/workloads.png)
+
+You can also query by Pod in Prometheus. For example, the bytes that one Pod sends to each peer:
+
+```promql
+sum by (dst_pod_namespace, dst_pod_name) (rate(rdma_flow_bytes_total{src_pod_namespace="tenant-a", src_pod_name="vllm-decode-0"}[5m]))
+```
+
+### Configuration that the panels need
+
+Some panels need [RDMA send event storage](./rdma-flow-events.md):
+
+| Panels | Configuration needed |
+| --- | --- |
+| Cumulative bytes sent, Cumulative WRs, Active QPs, Cumulative bytes from source Pod to destination Pods, Cumulative bytes by source Pod, Cumulative bytes by peer Pod, Workload outgoing flow details | The configuration in this document |
+| Cumulative sends, Peer Pods in time range, Cumulative sends and size percentiles by source and destination Pod, Cumulative traffic by device pair | Also enable RDMA send event storage |
+| Top 20 most common message sizes, Processes and QPs per source Pod, Latest send records | Also enable RDMA send event storage with the Elasticsearch backend |
 
 ## Troubleshooting
 
@@ -174,7 +196,7 @@ If you used a different namespace, change `NAMESPACE`.
 1. Make sure that the application meets the observation conditions:
 
    - The communication library actually uses the CPU-initiated `libibverbs` path. Use [Scope](#scope), and check the NCCL, UCX, or application logs.
-   - The application actually makes RDMA traffic while you troubleshoot. Check the application logs, the communication test results, or [RDMA metrics](./rdma-metrics.md).
+   - The application actually makes RDMA traffic while you troubleshoot. Check the application logs, the communication test results, or [host and Pod RDMA NIC metrics](./rdma-metrics.md).
 
    If one of the conditions is false, there is no flow data. Do not continue to check the Agent or Grafana.
 
@@ -240,7 +262,7 @@ If you used a different namespace, change `NAMESPACE`.
    If `qp_infos` is empty, the QP usually did not enter the RTR state yet, or the Agent did not catch the provider callback.
    If `qp_stats` is empty, the application usually did not submit sends through a supported `libibverbs` path.
 
-5. If the Agent has flow metrics locally, check the Prometheus scrape. See [RDMA metrics](./rdma-metrics.md#prometheus-has-no-metrics).
+5. If the Agent has flow metrics locally, check the Prometheus scrape. See [host and Pod RDMA NIC metrics](./rdma-metrics.md#prometheus-has-no-metrics).
    Then run this query in Prometheus or Grafana Explore:
 
    ```promql
@@ -251,17 +273,18 @@ If you used a different namespace, change `NAMESPACE`.
 
 ### Some panels have no data
 
-See the panel table in [Verification](#verification).
+See [Configuration that the panels need](#configuration-that-the-panels-need).
 The panels for send counts and message sizes need [RDMA send event storage](./rdma-flow-events.md).
 
 ### Workload labels stop at an intermediate resource
 
-See [RDMA metrics](./rdma-metrics.md#workload-labels-are-empty-or-stop-at-an-intermediate-resource).
+See [host and Pod RDMA NIC metrics](./rdma-metrics.md#workload-labels-are-empty-or-stop-at-an-intermediate-resource).
 
 ## References
 
-- [High-speed network traffic observability](./README.md): the traffic observability scope, and the rules of the Pod identity association.
+- [AI high-speed network traffic observability](./README.md): the full scope.
 - [RDMA send event storage](./rdma-flow-events.md): record each RDMA send.
+- [Metrics reference](../../reference/metrics.md): all metrics and labels.
 - [eBPF RDMA flow attribution design](../../design/rdma-flow.md): the design of the data plane, the attribution, and `RDMAEndpoint`.
 - [RDMAEndpoint reference](../../reference/rdmaendpoint.md): the fields of `RDMAEndpoint`.
 - [Helm values reference](../../../chart/README.md): all `agent.ebpfFlow.*` parameters.

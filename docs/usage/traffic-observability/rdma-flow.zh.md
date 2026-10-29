@@ -5,21 +5,20 @@ English version: [rdma-flow.md](./rdma-flow.md)
 ## 简介
 
 网卡计数器只记录一张网卡或一个 Pod 发送了多少流量,不记录流量发给了谁。
-基于 eBPF 的 RDMA tracing在 `libibverbs` 的提交路径上挂载 eBPF 探针。
+基于 eBPF 的 RDMA tracing 在 `libibverbs` 的提交路径上挂载 eBPF 探针。
 它把每次 RDMA 发送归属到一条 Pod 间的流,无需修改应用。
 运维用它查看训练任务和推理任务的通信对端、流量大小和消息大小。
-本文说明如何开启、验证和排查 基于 eBPF 的 RDMA tracing。
+本文说明如何开启、验证和排查基于 eBPF 的 RDMA tracing。
 
 | 项目 | 说明 |
 | --- | --- |
-| 观测位置 | ② RDMA 提交路径 |
 | 适用网络 | Scale-out、Storage |
 | 数据来源 | `libibverbs` 提交路径上的 eBPF uprobe |
 | 观测对象 | CPU 发起的 RDMA 通信 |
-| 归因粒度 | 源 Pod 和目的 Pod、源设备和目的设备、两端的顶层 workload |
-| 输出 | `rdma_flow_*` 指标、`RDMAEndpoint` 资源,Pod 和 AI Workload 仪表盘中的"RDMA 发送明细(CPU 侧发起)"分组 |
+| 统计维度 | 源 Pod 和目的 Pod、源设备和目的设备、两端所属的任务 |
+| 输出 | `rdma_flow_*` 指标、`RDMAEndpoint` 资源,Grafana 中 Pod 和 AI Workload 仪表盘的"RDMA 发送明细(CPU 侧发起)"分组 |
 | 节点侧要求 | Linux 内核 5.8 及以上,支持 BPF ring buffer 和 uprobe |
-| Helm 配置 | `agent.ebpfFlow.enabled=true`。InfiniBand 网络还需设置 `agent.ebpfFlow.endpoint.allPods=true` |
+| 默认状态 | 默认关闭 |
 
 Agent 按以下方式还原一条流:
 
@@ -28,20 +27,7 @@ Agent 按以下方式还原一条流:
 - 目的端: Agent 用 QP 的目的地址找到目的 Pod。RoCE 网络使用 GID,即 Pod IP 或 MAC。InfiniBand 网络使用 LID。
 - `RDMAEndpoint`: 每个 Agent 发布本节点 RDMA Pod 的设备、GID、LID 和 QP。其他节点的 Agent 用它解析目的 Pod。
 
-基于 eBPF 的 RDMA tracing导出以下指标:
-
-| 指标 | 含义 | 要求 |
-| --- | --- | --- |
-| `rdma_flow_bytes_total` | 一条流累计发送的字节数。 | `agent.ebpfFlow.enabled=true` |
-| `rdma_flow_wrs_total` | 一条流累计发送的 WR 数。 | `agent.ebpfFlow.enabled=true` |
-| `rdma_flow_qps` | 一条流当前活跃的 QP 数。 | `agent.ebpfFlow.enabled=true` |
-| `rdma_flow_sends_total` | 一条流累计的发送次数。 | 还需开启 [RDMA 发送事件存储](./rdma-flow-events.zh.md) |
-| `rdma_flow_send_bytes` | 每次发送的字节数分布 (直方图)。 | 还需开启 [RDMA 发送事件存储](./rdma-flow-events.zh.md) |
-
-每个样本带有以下标签:
-`src_pod_namespace`、`src_pod_name`、`src_pod_top_owner_kind`、`src_pod_top_owner_namespace`、`src_pod_top_owner_name`、
-`dst_pod_namespace`、`dst_pod_name`、`dst_pod_top_owner_kind`、`dst_pod_top_owner_namespace`、`dst_pod_top_owner_name`、
-`src_device` 和 `dst_device`。
+全部指标和标签的定义,参见[指标参考](../../reference/metrics.zh.md#rdma-tracing-指标)。
 
 限制:
 
@@ -50,11 +36,11 @@ Agent 按以下方式还原一条流:
 - Agent 在提交请求的一端记录流量。一条流的源 Pod 是提交 WR 的 Pod。对于 RDMA Read,数据实际从目的 Pod 流向源 Pod。
 - 源 Pod 或目的 Pod 尚未解析的流不计入指标。解析成功后,Agent 一次性补记此前的流量。
 
-基于 eBPF 的 RDMA tracing 覆盖流量观测范围中的 ② RDMA 提交路径。完整的观测范围和其他位置的观测方式,参见[高速网络流量观测](./README.zh.md#流量观测范围)。
+这一项是 AI 高速网络流量观测的一部分。完整的观测范围,参见 [AI 高速网络流量观测](./README.zh.md#流量观测范围)。
 
 ## 适用范围
 
-基于 eBPF 的 RDMA tracing只支持 **CPU 发起的 RDMA**。
+基于 eBPF 的 RDMA tracing 只支持 **CPU 发起的 RDMA**。
 发送请求 (WR) 必须由 CPU 通过 `libibverbs` 提交。
 数据在 GPU 显存中不影响观测。
 GPUDirect RDMA 只要由 CPU 提交,仍可观测。
@@ -89,13 +75,13 @@ GDAKI、GPUDirect Async、IBGDA 等 **GPU 发起的 RDMA** 由 GPU kernel 直接
 
 ## 前提条件
 
-- 满足[高速网络流量观测](./README.zh.md#前提条件)中的前提条件。
+- 满足 [AI 高速网络流量观测](./README.zh.md#前提条件)中的前提条件。
 - 节点的 Linux 内核为 5.8 及以上,支持 BPF ring buffer 和 uprobe。
 - 要观测的应用使用主机端 `libibverbs` 路径提交 RDMA 请求。只使用 RDMA 设备或 GPU 缓冲区,不代表应用可观测。
 
 ## 配置
 
-执行以下命令,开启 基于 eBPF 的 RDMA tracing:
+执行以下命令,开启基于 eBPF 的 RDMA tracing:
 
 ```bash
 helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
@@ -110,7 +96,7 @@ InfiniBand 网络按 LID 寻址对端,Agent 无法从 LID 反查 Pod。
 开启后,Agent 为每个 RDMA Pod 发布 `RDMAEndpoint`,其他节点的 Agent 据此解析目的 Pod。
 默认情况下,Agent 只为 hostNetwork Pod 和尚未进入 IP 索引的 Pod 发布 `RDMAEndpoint`。其他 Pod 通过 Pod IP 解析。
 
-开启后,Agent 每 5 秒 (`agent.ebpfFlow.reportInterval`) 把 BPF map 中的数据汇总为流指标。
+开启后,Agent 默认每 5 秒把 BPF map 中的数据汇总为流指标。
 这一级不产生逐次发送事件,也不需要存储后端。
 如果需要每次发送的记录和消息大小分布,继续配置 [RDMA 发送事件存储](./rdma-flow-events.zh.md)。
 
@@ -153,16 +139,52 @@ InfiniBand 网络按 LID 寻址对端,Agent 无法从 LID 反查 Pod。
 
    <!-- TODO: 待真实环境采集输出 -->
 
-4. 在 Grafana 中打开 Unifabric RDMA Pod 仪表盘或 Unifabric RDMA AI Workload 仪表盘,展开"RDMA 发送明细(CPU 侧发起)"分组。
-   各面板需要的配置如下:
+## 查看结果
 
-   | 面板 | 需要的配置 |
-   | --- | --- |
-   | 累计发送字节、累计 WR、当前活跃 QP、源 Pod 到目的 Pod 累计通讯字节、按源 Pod 累计发送字节、按对端 Pod 累计发送字节、Workload 对外流量明细 | 本文的配置 |
-   | 累计发送次数、时间范围内对端 Pod 数、按源与目的 Pod 的累计发送和大小分位、网卡对累计通讯 | 还需开启 [RDMA 发送事件存储](./rdma-flow-events.zh.md) |
-   | 最常见的消息大小 Top 20、源 Pod 内的进程与 QP、最近发送记录 | 还需开启 RDMA 发送事件存储,并使用 Elasticsearch 后端 |
+打开 Grafana 的 Unifabric RDMA Pod 仪表盘或 Unifabric RDMA AI Workload 仪表盘,展开"RDMA 发送明细(CPU 侧发起)"分组。
 
-   ![Unifabric RDMA Pod 仪表盘](../../images/pods.png)
+### Unifabric RDMA Pod
+
+选择 namespace 和 Pod,查看这个 Pod 和谁通信:
+
+- 累计发送字节、累计发送次数、当前活跃 QP 和时间范围内的对端 Pod 数。
+- 源 Pod 到每个目的 Pod 的累计字节数,以及每对网卡之间的累计流量。
+- 消息大小的分布和最常见的消息大小。
+- 源 Pod 内每个进程使用的 QP,以及最近的发送记录。
+
+用它确认一个 Pod 的通信对端和消息大小是否符合预期。
+同一仪表盘中网卡吞吐和错误的分组来自[主机与 Pod 的 RDMA 网卡指标](./rdma-metrics.zh.md#unifabric-rdma-pod)。
+把两部分放在一起看,可以判断一个 Pod 的流量发给了谁,以及它的网卡上有没有拥塞和错误。
+
+![Unifabric RDMA Pod 仪表盘](../../images/pods.png)
+
+### Unifabric RDMA AI Workload
+
+选择任务的 kind、namespace 和 name,例如一个 `PyTorchJob`,查看这个任务对外的通信:
+
+- 任务累计发送的字节数、WR 数、发送次数和活跃 QP。
+- 按源 Pod 和按对端 Pod 汇总的字节数。
+- 任务对外的每一条流: 源 Pod、目的 Pod 和两端的网卡。
+
+用它找到一个任务中通信最多的 Pod 和它的对端。
+
+![Unifabric RDMA AI Workload 仪表盘](../../images/workloads.png)
+
+在 Prometheus 中也可以按 Pod 查询。例如,查看一个 Pod 发往每个对端的字节数:
+
+```promql
+sum by (dst_pod_namespace, dst_pod_name) (rate(rdma_flow_bytes_total{src_pod_namespace="tenant-a", src_pod_name="vllm-decode-0"}[5m]))
+```
+
+### 面板需要的配置
+
+部分面板需要开启 [RDMA 发送事件存储](./rdma-flow-events.zh.md):
+
+| 面板 | 需要的配置 |
+| --- | --- |
+| 累计发送字节、累计 WR、当前活跃 QP、源 Pod 到目的 Pod 累计通讯字节、按源 Pod 累计发送字节、按对端 Pod 累计发送字节、Workload 对外流量明细 | 本文的配置 |
+| 累计发送次数、时间范围内对端 Pod 数、按源与目的 Pod 的累计发送和大小分位、网卡对累计通讯 | 还需开启 RDMA 发送事件存储 |
+| 最常见的消息大小 Top 20、源 Pod 内的进程与 QP、最近发送记录 | 还需开启 RDMA 发送事件存储,并使用 Elasticsearch 后端 |
 
 ## 故障排查
 
@@ -174,7 +196,7 @@ InfiniBand 网络按 LID 寻址对端,Agent 无法从 LID 反查 Pod。
 1. 确认应用满足观测条件:
 
    - 通信库实际使用 CPU 发起的 `libibverbs` 路径。参考[适用范围](#适用范围),并结合 NCCL、UCX 或应用日志确认。
-   - 排查期间应用确实产生了 RDMA 通信。通过应用日志、通信测试结果或 [RDMA 指标](./rdma-metrics.zh.md)确认有流量。
+   - 排查期间应用确实产生了 RDMA 通信。通过应用日志、通信测试结果或 [主机与 Pod 的 RDMA 网卡指标](./rdma-metrics.zh.md)确认有流量。
 
    任一条件不成立时,都不会产生流数据,无需继续检查 Agent 或 Grafana。
 
@@ -240,7 +262,7 @@ InfiniBand 网络按 LID 寻址对端,Agent 无法从 LID 反查 Pod。
    `qp_infos` 为空,通常说明 QP 尚未进入 RTR 状态,或者 Agent 没有捕获 provider 回调。
    `qp_stats` 为空,通常说明应用没有通过受支持的 `libibverbs` 路径提交发送。
 
-5. 如果 Agent 本地已有流指标,检查 Prometheus 的抓取。参见 [RDMA 指标](./rdma-metrics.zh.md#prometheus-中没有指标)。
+5. 如果 Agent 本地已有流指标,检查 Prometheus 的抓取。参见 [主机与 Pod 的 RDMA 网卡指标](./rdma-metrics.zh.md#prometheus-中没有指标)。
    然后在 Prometheus 或 Grafana Explore 中执行:
 
    ```promql
@@ -251,17 +273,18 @@ InfiniBand 网络按 LID 寻址对端,Agent 无法从 LID 反查 Pod。
 
 ### 部分面板没有数据
 
-参见[验证](#验证)中的面板表。
+参见[面板需要的配置](#面板需要的配置)。
 发送次数和消息大小相关的面板需要开启 [RDMA 发送事件存储](./rdma-flow-events.zh.md)。
 
 ### workload 标签停在中间资源
 
-参见 [RDMA 指标](./rdma-metrics.zh.md#workload-标签为空或停在中间资源)。
+参见 [主机与 Pod 的 RDMA 网卡指标](./rdma-metrics.zh.md#workload-标签为空或停在中间资源)。
 
 ## 参考
 
-- [高速网络流量观测](./README.zh.md): 流量观测范围,以及 Pod 身份的关联规则。
+- [AI 高速网络流量观测](./README.zh.md): 完整的观测范围。
 - [RDMA 发送事件存储](./rdma-flow-events.zh.md): 记录每次 RDMA 发送。
+- [指标参考](../../reference/metrics.zh.md): 全部指标和标签。
 - [eBPF RDMA 流归因设计](../../design/rdma-flow.zh.md): 数据面、归属和 `RDMAEndpoint` 的设计。
 - [RDMAEndpoint 参考](../../reference/rdmaendpoint.zh.md): `RDMAEndpoint` 的字段。
 - [Helm values 参考](../../../chart/README.md): 全部 `agent.ebpfFlow.*` 参数。

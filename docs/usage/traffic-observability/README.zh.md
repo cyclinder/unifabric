@@ -1,10 +1,10 @@
-# 高速网络流量观测
+# AI 高速网络流量观测
 
 English version: [README.md](./README.md)
 
 ## 简介
 
-Unifabric 高速网络流量观测采集 AI 应用在高速网络上的通信流量。
+Unifabric AI 高速网络流量观测采集 AI 应用在高速网络上的通信流量。
 它把流量关联到 Pod、namespace 和顶层 workload。
 观测范围覆盖 NVLink 域内 GPU 之间的 NVLink 通信,以及 Pod 经过 RDMA 网卡和交换机的跨节点通信。
 结果以 Prometheus 指标、`RDMAEndpoint` 资源和 Grafana 仪表盘的形式提供。
@@ -13,7 +13,7 @@ Unifabric 高速网络流量观测采集 AI 应用在高速网络上的通信流
 
 - 流量观测覆盖通信路径上的哪些位置,以及各位置当前是否支持。
 - 各位置的数据如何关联到同一个 Pod 身份。
-- 各观测方式的配置和验证步骤在哪里查看。
+- 各观测方式的详细文档在哪里查看。
 
 ## 背景
 
@@ -47,7 +47,7 @@ Pod 读写模型、数据集和 KV Cache 的流量也经过 RDMA 网卡和交换
   任务变慢时,运维无法回答"是谁的流量占用了带宽,影响了哪些任务"。
   性能调优时,也无法确认通信的对端、时序和消息大小是否符合预期。
 
-Unifabric 的高速网络流量观测功能尝试解决这些问题：
+Unifabric 的 AI 高速网络流量观测功能尝试解决这些问题：
 它在通信路径的各个位置采集流量,并把每一处的数据都关联到同一个 Pod 身份上。
 运维可以从一个 workload 出发,查到它的 Pod 和谁通信、经过了哪些网卡、这些网卡上有没有拥塞和错误。
 这样就能判断任务变慢是否由网络引起,以及是谁的流量影响了谁。
@@ -72,7 +72,7 @@ Unifabric 的高速网络流量观测功能尝试解决这些问题：
 | --- | --- | --- | --- |
 | ① NVLink | NVLink 域内 GPU 之间的 NVLink 流量 | 规划中 | 无 |
 | ② RDMA 提交路径 | Pod 之间的 RDMA 流: 谁和谁通信、流量多大、每次发送多大 | 已支持 | [基于 eBPF 的 RDMA tracing](./rdma-flow.zh.md)、[RDMA 发送事件存储](./rdma-flow-events.zh.md) |
-| ③ 主机与 Pod 的 RDMA 网卡 | 网卡的吞吐、拥塞、错误和重传 | 已支持 | [RDMA 指标](./rdma-metrics.zh.md) |
+| ③ 主机与 Pod 的 RDMA 网卡 | 网卡的吞吐、拥塞、错误和重传 | 已支持 | [主机与 Pod 的 RDMA 网卡指标](./rdma-metrics.zh.md) |
 | ④ 交换机 | 交换机端口上的 RDMA 流量 | 规划中 | 无 |
 
 Scale-out 网络和 Storage 网络的流量经过 ② 到 ④。
@@ -120,12 +120,12 @@ RDMA 通信绕过内核,网卡上只有总量计数。
 
 | 项目 | 说明 |
 | --- | --- |
-| 观测对象 | Pod 的 RDMA 网卡 (SR-IOV VF,或 host 模式下共用的主机网卡) 和主机的 RDMA 网卡 (PF) |
+| 观测对象 | 主机的 RDMA 网卡和 Pod 使用的 RDMA 设备 |
 | 数据来源 | sysfs 中的 RDMA 计数器,ethtool 优先级计数器 |
-| 关联到 Pod 的方式 | Pod 网卡: `FabricNode.status.rdmaPods` 中的 RDMA Pod。主机网卡: 节点。VF 通过 `parent_ifname` 标签关联到 PF。 |
-| 输出 | `unifabric_*` 指标,RDMA 集群、节点、Pod 和 AI Workload 仪表盘 |
+| 关联到 Pod 的方式 | Agent 识别使用 RDMA 的 Pod,读取 Pod 内 RDMA 设备的计数器 |
+| 输出 | `unifabric_*` 指标,Grafana 中的 RDMA 集群、节点、Pod 和 AI Workload 仪表盘 |
 | 支持情况 | 已支持 |
-| 文档 | [RDMA 指标](./rdma-metrics.zh.md) |
+| 文档 | [主机与 Pod 的 RDMA 网卡指标](./rdma-metrics.zh.md) |
 
 这一项读取网卡的吞吐、拥塞 (ECN、CNP)、错误与重传,以及各优先级的 pause 和丢弃计数器。
 `kind` 标签记录网卡属于哪张网络: `scaleOut`、`storage` 或 `scaleUp`。
@@ -146,63 +146,22 @@ RDMA 通信绕过内核,网卡上只有总量计数。
 
 ## 关联到 Pod 身份
 
-上面几种观测方式各自拿到一个位置的数据: eBPF tracing 拿到 Pod 之间的 RDMA 流,网卡观测拿到每张网卡的计数器。
-Unifabric 在采集时就给每条数据打上 Pod 身份: `pod_namespace`、`pod_name` 和顶层 workload (`topowner_*` 或 `*_top_owner_*`)。
-不同位置的数据因此可以用同一个 Pod 或同一个 workload 查询,不需要人工做关联。
+上面各观测方式分别采集通信路径上一个位置的数据。
+Unifabric 在采集时给每条数据加上 Pod 身份: Pod、namespace,以及 Pod 所属的训练或推理任务。
+因此,不同位置的数据可以用同一个 Pod 或同一个任务查询。
+在 Grafana 中选择一个 Pod 或一个任务,就能同时看到它的网卡流量和它与其他 Pod 之间的通信。
 
-### 需要配置什么
+各观测方式如何关联到 Pod,以及在 Grafana 中能看到什么,参见:
 
-大部分场景不需要配置:
-
-- Pod 身份自动识别。Agent 从 `FabricNode.status.rdmaPods` 识别使用 RDMA 的 Pod (SR-IOV 或 host 模式),eBPF tracing 按发送进程所在的 cgroup 识别 Pod。
-- 顶层 workload 自动解析。Chart 默认授予 Agent 读取 Kubernetes 内置 workload,以及 Kubeflow、JobSet、LeaderWorkerSet、KubeRay、Spark Operator 等常见 workload 的权限。
-
-只有一种情况需要手动配置: 你的 workload 控制器不在默认列表中,例如 Argo Workflows。
-这时在 `agent.workloadOwnerRules` 中添加它的 API 组和复数资源名:
-
-```yaml
-agent:
-  workloadOwnerRules:
-    argoproj.io: [workflows]
-```
-
-详细的识别规则和排查方法,参见 [RDMA 指标](./rdma-metrics.zh.md#pod-与-workload-归因)。
-
-### 效果
-
-打开 Unifabric RDMA Pod 仪表盘,选择 namespace 和 Pod,可以在一个页面上看到这个 Pod 在各个位置的流量:
-
-| 分组 | 来自哪个观测位置 | 内容 |
-| --- | --- | --- |
-| 概览、RDMA 基础统计、RDMA 错误统计 | ③ 主机与 Pod 的 RDMA 网卡 | 这个 Pod 网卡的吞吐、带宽利用率、拥塞和错误计数器 |
-| RDMA 发送明细 (CPU 侧发起) | ② RDMA 提交路径 | 这个 Pod 和哪些 Pod 通信、每条流的字节数、消息大小分布、最近的发送记录 |
-
-![Unifabric RDMA Pod 仪表盘](../../images/pods.png)
-
-打开 Unifabric RDMA AI Workload 仪表盘,选择 workload 的 kind、namespace 和 name,可以看到这个任务下所有 Pod 的汇总:
-每个 Pod 的吞吐和错误,以及任务对外的 RDMA 流和对端 Pod。
-
-![Unifabric RDMA AI Workload 仪表盘](../../images/workloads.png)
-
-在 Prometheus 中也可以直接按 Pod 查询。例如,查看一个 Pod 网卡的发送吞吐和它发往每个对端的字节数:
-
-```promql
-sum(rate(unifabric_port_xmit_data{pod_namespace="tenant-a", pod_name="vllm-decode-0"}[5m]))
-sum by (dst_pod_namespace, dst_pod_name) (rate(rdma_flow_bytes_total{src_pod_namespace="tenant-a", src_pod_name="vllm-decode-0"}[5m]))
-```
-
-例如,一个 `PyTorchJob` 变慢时:
-
-1. 在 AI Workload 仪表盘中选择这个任务,找到流量最大的 Pod 和它的对端。
-2. 切换到 Pod 仪表盘,查看这个 Pod 网卡的拥塞和错误计数器。
-3. 用 Node 的拓扑 label 找到同一台 leaf 交换机下的其他节点,在 RDMA 集群仪表盘中检查这些节点上其他任务的流量。
+- [主机与 Pod 的 RDMA 网卡指标](./rdma-metrics.zh.md#关联到-pod-和训练任务)
+- [基于 eBPF 的 RDMA tracing](./rdma-flow.zh.md#查看结果)
 
 ## 参考
 
-- [RDMA 指标](./rdma-metrics.zh.md)、[基于 eBPF 的 RDMA tracing](./rdma-flow.zh.md)、[RDMA 发送事件存储](./rdma-flow-events.zh.md): 各观测方式的原理、配置、验证和故障排查。
+- [主机与 Pod 的 RDMA 网卡指标](./rdma-metrics.zh.md)、[基于 eBPF 的 RDMA tracing](./rdma-flow.zh.md)、[RDMA 发送事件存储](./rdma-flow-events.zh.md): 各观测方式的原理、配置、验证和故障排查。
 - [架构](../../concepts/architecture.zh.md): Agent、Controller 和各组件之间的关系。
 - [拓扑发现概念](../../concepts/topology-discovery.zh.md): 节点和网卡连接的交换机。
 - [RDMA 指标模型与 Pod 归因设计](../../design/rdma-metrics.zh.md)、[eBPF RDMA 流归因设计](../../design/rdma-flow.zh.md)。
-- [RDMAEndpoint 参考](../../reference/rdmaendpoint.zh.md)、[FabricNode 参考](../../reference/fabricnode.zh.md)。
+- [指标参考](../../reference/metrics.zh.md)、[RDMAEndpoint 参考](../../reference/rdmaendpoint.zh.md)、[FabricNode 参考](../../reference/fabricnode.zh.md)。
 - [Helm values 参考](../../../chart/README.md): 全部 `nodeMetrics.*`、`agent.ebpfFlow.*`、`ebpfFlowEventCollector.*` 和 `grafanaDashboard.*` 参数。
 - [路线图](../../roadmap.zh.md): 规划中的功能。

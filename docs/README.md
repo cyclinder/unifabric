@@ -41,10 +41,10 @@ For other Chart parameters, see the defaults and descriptions in the
 
 - [Topology visualization](./usage/topology-visualization.md): render the discovered
   fabric in Grafana.
-- [High-speed network traffic observability](./usage/traffic-observability/README.md):
+- [AI high-speed network traffic observability](./usage/traffic-observability/README.md):
   the traffic observability scope, the observation method of each location, and the Pod identity association.
-- [RDMA metrics](./usage/traffic-observability/rdma-metrics.md): RDMA traffic, congestion, and error
-  metrics with Pod and workload attribution.
+- [Host and Pod RDMA NIC metrics](./usage/traffic-observability/rdma-metrics.md): RDMA traffic, congestion, and error
+  metrics of host NICs and Pod RDMA devices, associated with Pods and jobs.
 - [eBPF-based RDMA tracing](./usage/traffic-observability/rdma-flow.md): attribute RDMA sends to Pod-to-Pod
   flows with eBPF and publish `RDMAEndpoint`.
 - [RDMA send event storage](./usage/traffic-observability/rdma-flow-events.md): store per-send events

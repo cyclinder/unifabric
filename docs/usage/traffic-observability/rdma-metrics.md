@@ -1,66 +1,38 @@
-# RDMA Metrics
+# Host and Pod RDMA NIC Metrics
 
 中文版: [rdma-metrics.zh.md](./rdma-metrics.zh.md)
 
 ## Introduction
 
 The Agent on each node collects the counters of the RDMA NICs and exports them as Prometheus metrics.
-The metrics cover host NICs and Pod NICs.
-Each sample has a network type label. Pod-level samples also have Pod and workload labels.
-This document tells you how to configure, verify, and view RDMA metrics.
+The metrics cover the RDMA NICs of the host and the RDMA devices that Pods use. They include throughput, congestion, errors and retransmissions, and pause and discards of each priority.
+Each sample has a network type label. The samples of a Pod also have labels for the Pod and for the training or inference job that it belongs to.
+This document tells you how to configure, verify, and view these metrics.
 
 | Item | Description |
 | --- | --- |
-| Observation location | ③ Host and Pod RDMA NICs |
+| Observed object | The RDMA NICs of the host and the RDMA devices that Pods use |
 | Applicable networks | RDMA NICs in the Scale-out, Storage, and Scale-up networks |
-| Data sources | `counters` and `hw_counters` in `/sys/class/infiniband`, NIC attributes in `/sys/class/net`, and ethtool priority counters |
-| Attribution levels | Node, NIC, Pod, workload |
-| Output | `unifabric_*` metrics, and the RDMA Cluster, Node, Pod, and AI Workload dashboards |
-| Node side requirements | Linux nodes. RDMA devices are visible in `/sys/class/infiniband`. Pod attribution needs containerd. |
-| Helm configuration | `nodeMetrics.enabled=true` (default), `grafanaDashboard.enabled=true` (default) |
+| Data sources | RDMA counters and NIC attributes in sysfs, and ethtool priority counters |
+| Dimensions | Node, NIC, Pod, workload |
+| Output | `unifabric_*` metrics, and the RDMA Cluster, Node, Pod, and AI Workload dashboards in Grafana |
+| Node side requirements | Linux nodes. RDMA devices are visible in `/sys/class/infiniband`. |
+| Default state | Enabled by default |
 
-The metrics are in these categories:
-
-| Category | Examples | Source |
-| --- | --- | --- |
-| Throughput | `unifabric_port_xmit_data`, `unifabric_port_rcv_data`, `unifabric_unicast_xmit_packets` | `counters` |
-| Congestion | `unifabric_np_ecn_marked_roce_packets`, `unifabric_np_cnp_sent`, `unifabric_rp_cnp_handled`, `unifabric_out_of_sequence` | `hw_counters` |
-| Errors and retransmission | `unifabric_local_ack_timeout_err`, `unifabric_packet_seq_err`, `unifabric_req_cqe_error`, `unifabric_out_of_buffer` | `hw_counters` |
-| NIC attributes | `unifabric_port_speed_mbps`, `unifabric_port_mtu`, `unifabric_port_oper_state`, `unifabric_rdma_device_tos` | `/sys/class/net`, device traffic class |
-| Priority | `unifabric_rx_pause`, `unifabric_tx_pause`, `unifabric_rx_discards`, `unifabric_tx_discards` | ethtool |
-
-The NIC driver supplies the counters in `hw_counters`.
-Different NICs and driver versions supply different counters.
-RoCE-only counters, for example ECN and CNP, are only on RoCE NICs.
-
-All samples use the same label set. The main labels are:
-
-| Label | Meaning |
-| --- | --- |
-| `node_name` | The node name. |
-| `device` | The RDMA device, for example `mlx5_0`. |
-| `ifname` | The NIC of the RDMA device. |
-| `parent_ifname` | The PF NIC of a VF. For a PF, it is the same as `ifname`. |
-| `kind` | The network of the NIC: `scaleOut`, `storage`, `scaleUp`, or empty. |
-| `scope` | `host` or `pod`. |
-| `pod_namespace`, `pod_name` | The Pod of a Pod-level sample. |
-| `topowner_kind`, `topowner_namespace`, `topowner_name` | The top-level workload of the Pod. |
-| `host_rdma` | Whether the Pod uses RDMA in host mode. |
-
-For all labels, see the [RDMA metric model and Pod attribution design](../../design/rdma-metrics.md#metric-model).
+For the definitions of all metrics and labels, see the [metrics reference](../../reference/metrics.md#host-and-pod-rdma-nic-metrics).
 
 Limits:
 
-- RDMA metrics record how much traffic each NIC sends and receives. They do not record where the traffic goes. To see the peers, use [eBPF-based RDMA tracing](./rdma-flow.md).
+- The metrics record how much traffic each NIC sends and receives. They do not record where the traffic goes. To see the peers, use [eBPF-based RDMA tracing](./rdma-flow.md).
 - The metrics are the counter values at scrape time. The Agent does not keep history. Prometheus keeps the history.
-- Only RDMA Pods have Pod-level samples. For the conditions, see [Identify RDMA Pods](#identify-rdma-pods).
-- For a Pod in host mode, the Pod-level samples are copies of the host NIC samples. When many Pods in host mode share one NIC, their samples are the same.
+- Only Pods that are identified as RDMA users have Pod samples. See [Identify the Pods that use RDMA](#identify-the-pods-that-use-rdma).
+- A Pod in host mode uses the host NIC directly, so its samples are copies of the host NIC samples. When many Pods in host mode share one NIC, their samples are the same.
 
-RDMA metrics cover ③ the host and Pod RDMA NICs in the traffic observability scope. For the full scope and the observation methods of the other locations, see [High-speed network traffic observability](./README.md#traffic-observability-scope).
+This item is part of AI high-speed network traffic observability. For the full scope, see [AI high-speed network traffic observability](./README.md#traffic-observability-scope).
 
 ## Prerequisites
 
-- You meet the prerequisites in [High-speed network traffic observability](./README.md#prerequisites).
+- You meet the prerequisites in [AI high-speed network traffic observability](./README.md#prerequisites).
 - The RDMA devices are visible on the node:
 
   ```bash
@@ -69,15 +41,15 @@ RDMA metrics cover ③ the host and Pod RDMA NICs in the traffic observability s
 
 ## Configuration
 
-RDMA metrics are enabled by default.
-After the basic installation, the Agent already exports the metrics, and the chart already created the `ServiceMonitor` and the dashboards.
+The metrics are enabled by default.
+After the basic installation, the Agent already exports the metrics, and the chart already created the `ServiceMonitor` and the Grafana dashboards.
 Change the configuration only in the scenarios below.
 
 ### Separate the network types
 
-By default, the Agent classifies all RDMA NICs as `scaleOut`.
-If the node has storage NICs or Scale-up NICs, set the related selector.
-For example, to classify `eth5` and `eth6` as `storage`:
+By default, the Agent classifies all RDMA NICs into the Scale-out network.
+If the node has storage NICs or Scale-up NICs, set the related NIC selector at deployment.
+For example, to classify `eth5` and `eth6` into the Storage network:
 
 ```bash
 helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
@@ -87,68 +59,36 @@ helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
   --wait
 ```
 
-The Agent sets `kind` in this order:
-
-1. A NIC that matches `fabricNode.storageInterfaceSelector` is `storage`.
-2. A NIC that matches `fabricNode.scaleUpInterfaceSelector` is `scaleUp`.
-3. A NIC that matches `fabricNode.scaleOutInterfaceSelector` is `scaleOut`.
-4. If `scaleOutInterfaceSelector` is not set, the other NICs are `scaleOut`.
-
-The Agent matches `parent_ifname` first, then `ifname`.
-A selector can be `interface=eth*,!eth9` or `cidr=172.17.0.0/16`.
+The `kind` label of the metrics records the result.
+A selector can be `interface=eth*,!eth9` or `cidr=172.17.0.0/16`. For more, see `fabricNode.*` in the [Helm values reference](../../../chart/README.md).
 
 > Note: These selectors also set the NIC classification for topology discovery.
 
 ### Configure Prometheus scraping
 
-The chart creates the `ServiceMonitor` only when `nodeMetrics.enabled` and `serviceMonitor.enabled` are both `true`. Both are `true` by default.
-
-If Prometheus selects `ServiceMonitor` objects by label, add those labels in the values:
-
-```yaml
-nodeMetrics:
-  serviceMonitor:
-    labels:
-      release: prometheus
-    interval: 15s
-```
+The chart creates the `ServiceMonitor` by default.
+If Prometheus selects only `ServiceMonitor` objects with specific labels, add those labels with `nodeMetrics.serviceMonitor.labels` at deployment.
+For the scrape interval and the other parameters, see `nodeMetrics.*` in the [Helm values reference](../../../chart/README.md).
 
 ### Configure the dashboards
 
-The `grafanaDashboard.*` parameters control how the dashboards are installed:
+By default, the chart installs the English dashboards, and Grafana Operator imports them.
+To install the Chinese dashboards, to use the Grafana sidecar, or to select the target Grafana instance, see `grafanaDashboard.*` in the [Helm values reference](../../../chart/README.md).
 
-| Parameter | Default | Description |
-| --- | --- | --- |
-| `grafanaDashboard.kind` | `GrafanaDashboard` | Grafana Operator imports `GrafanaDashboard`. The Grafana sidecar imports `ConfigMap`. |
-| `grafanaDashboard.language` | `en` | `en` installs the English dashboards. `zh` installs the Chinese dashboards with a `-zh` suffix on the uid and the resource name. `all` installs both. |
-| `grafanaDashboard.instanceSelector` | `{}` | Selects the target instance when Grafana Operator manages many Grafana instances. |
-| `grafanaDashboard.labels` | `{}` | Labels added to the dashboard resources. Use them when the Grafana sidecar finds `ConfigMap` objects by label. |
+## Associate with Pods and jobs
 
-For example, to install the Chinese dashboards:
+The Agent adds the Pod name, the namespace, and the training or inference job of the Pod to each Pod sample.
+Then you can select a Pod or a job in Grafana and view its NIC traffic.
+Most scenarios need no configuration.
 
-```bash
-helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
-  --namespace unifabric-system \
-  --reuse-values \
-  --set grafanaDashboard.language=zh \
-  --wait
-```
+### Identify the Pods that use RDMA
 
-## Pod and workload attribution
+The Agent identifies these two types of Pods as RDMA users, and records them in `FabricNode.status.rdmaPods`:
 
-The Agent first attributes a sample to a Pod. Then it follows the `ownerReferences` of the Pod up to the top-level workload, for example a `PyTorchJob` or a `LeaderWorkerSet`.
-The `pod_namespace`, `pod_name`, and `topowner_*` labels record the result.
-The `*_top_owner_*` labels of [eBPF-based RDMA tracing](./rdma-flow.md) use the same resolution rules.
+- Pods that get RDMA devices through a CNI: the `k8s.v1.cni.cncf.io/network-status` annotation of the Pod contains `rdma-device`. For example, Pods that get a VF through Multus and the SR-IOV CNI.
+- Pods in host mode: the Pod sets `hostNetwork: true`, and at least one container is privileged and mounts `/dev/infiniband`.
 
-### Identify RDMA Pods
-
-Only RDMA Pods have Pod-level samples.
-The Agent identifies these two types of Pods as RDMA Pods and writes them to `FabricNode.status.rdmaPods`:
-
-- SR-IOV mode: the `k8s.v1.cni.cncf.io/network-status` annotation of the Pod contains `rdma-device`. Multus and the SR-IOV CNI write this annotation.
-- Host mode: the Pod sets `hostNetwork: true`, and at least one container is privileged and mounts `/dev/infiniband`.
-
-To see the RDMA Pods that the Agent found on a node:
+To see the Pods that the Agent found on a node:
 
 ```bash
 kubectl get fabricnode node1 -o jsonpath='{range .status.rdmaPods[*]}{.namespace}{"\t"}{.name}{"\t"}{.hostRDMA}{"\t"}{.topOwner.kind}/{.topOwner.name}{"\n"}{end}'
@@ -156,34 +96,34 @@ kubectl get fabricnode node1 -o jsonpath='{range .status.rdmaPods[*]}{.namespace
 
 <!-- TODO: capture output from a real environment -->
 
-> Note: Pods that get RDMA devices through DRA, for example with DraNet, are not identified as RDMA Pods yet. See [#47](https://github.com/unifabric-io/unifabric/issues/47).
+> Note: Pods that get RDMA devices through DRA, for example with DraNet, are not identified yet. See [#47](https://github.com/unifabric-io/unifabric/issues/47).
 
-> Note: Pod attribution in SR-IOV mode needs containerd. Pods on other container runtimes do not get Pod-level samples. Host-level samples are not affected.
+> Note: Pods that get RDMA devices through a CNI need containerd on the node. Pods on other container runtimes have no Pod samples. The host NIC samples are not affected.
 
-### Resolve the top-level workload
+### Identify the job of a Pod
 
-The Agent reads each object in the owner chain, so it needs the `get` permission on these resources.
-By default, the chart gives read permission on these resources:
+The Pods of training jobs and inference jobs are usually not created directly. Higher-level objects create them step by step.
+For example, a `PyTorchJob` creates Pods. A `Deployment` creates a `ReplicaSet`, and the `ReplicaSet` creates Pods.
+The `ownerReferences` of each object records the object that created it.
+The Agent follows this chain up, and writes the top object to the `topowner_*` labels as the job of the Pod.
+
+The Agent reads each object in the chain, so it needs read permission on these resource types.
+By default, the chart already gives read permission on these resource types. Jobs that they create need no configuration:
 
 - Kubernetes built-in resources: `Deployment`, `ReplicaSet`, `StatefulSet`, `DaemonSet`, `Job`, `CronJob`.
-- The third-party resources in `agent.workloadOwnerRules`. The default value includes the workloads of Kubeflow Training Operator, Kubeflow Trainer, JobSet, LeaderWorkerSet, KubeRay, and Spark Operator.
+- Common AI job controllers: the resources of Kubeflow Training Operator, Kubeflow Trainer, JobSet, LeaderWorkerSet, KubeRay, Spark Operator, and Volcano.
 
-If your workload controller is not in the list, add its API group and plural resource names to `agent.workloadOwnerRules`.
-The values that you give are merged with the default values.
-For example, to add Argo Workflows:
+If another controller creates the job, for example Argo Workflows, the Agent cannot read its objects, and the `topowner_*` labels are empty.
+Then give read permission with the Helm parameter `agent.workloadOwnerRules` at deployment.
+The key is the API group of the controller. The value is the plural names of the resource types.
+The values that you add are merged with the default values.
+For example, to give read permission on the `Workflow` resources of Argo Workflows:
 
 ```yaml
 agent:
   workloadOwnerRules:
     argoproj.io: [workflows]
 ```
-
-The chart renders these rules into the `<release>-agent-workload-owners` ClusterRole.
-
-When a permission is missing, the two observation methods behave differently:
-
-- RDMA metrics: if the Agent cannot read any one object in the owner chain, the `topowner_*` labels are empty.
-- eBPF-based RDMA tracing: the Agent follows only the resource types in [owners.go](../../../pkg/agent/ebpfflow/owners.go). When it finds a type that is not in the list, it uses that level as the top-level workload. To follow the chain further, you must add the type to `owners.go`.
 
 ## Verification
 
@@ -236,17 +176,18 @@ When a permission is missing, the two observation methods behave differently:
 
 ## View the dashboards
 
-RDMA metrics use these four dashboards.
-Start from the cluster overview, then go down to a node, a Pod, or a workload.
+Open Grafana. Start from the Unifabric RDMA Cluster dashboard, then go down to a node, a Pod, or a job.
 
 ### Unifabric RDMA Cluster
 
 The overview of the cluster. It has these rows:
 
-- Summary: the number of nodes, workloads, and Pods with RDMA, and the read and write throughput and throughput usage of the cluster and of each node.
+- Summary: the number of nodes, workloads, and Pods that use RDMA, and the read and write throughput and throughput usage of the cluster and of each node.
 - Hotspot: the 10 nodes, Pods, and workloads with the highest read and write throughput.
-- Node Status: pause, discards, ECN marks, CNP, and out-of-sequence packets of the PF on each node.
+- Node Status: pause, discards, ECN marks, CNP, and out-of-sequence packets of the host NICs on each node.
 - Pod Status: the 10 Pods with the most out-of-sequence packets and discards.
+
+Use the Hotspot row to find the jobs that use the most bandwidth. Use the Node Status row to find the nodes with congestion.
 
 ![Unifabric RDMA Cluster dashboard](../../images/cluster.png)
 
@@ -261,24 +202,38 @@ The details of each NIC on one node. It has these rows:
 - QoS: the traffic class of each device.
 - Interface: the list of network devices.
 
+Use it to find out if a NIC has congestion or errors.
+
 ![Unifabric RDMA Node dashboard](../../images/nodes.png)
 
 ### Unifabric RDMA Pod
 
-The NIC data of one Pod. It has these rows:
+Select a namespace and a Pod to view the data of the RDMA devices of this Pod:
 
-- Summary, RDMA basic statistics: the send and receive throughput of the Pod NICs.
-- RDMA error statistics: the errors and retransmissions of the Pod NICs.
-- RDMA send details (CPU initiated): comes from eBPF-based RDMA tracing. See [eBPF-based RDMA tracing](./rdma-flow.md#verification).
+- Summary: read and write throughput, throughput usage, and unicast and multicast packets.
+- RDMA basic statistics: received requests, out-of-sequence packets, duplicate requests, and retries.
+- RDMA error statistics: the errors on the requester side and the responder side.
+
+Use it to find out if congestion or errors affect the communication of a Pod.
+The "RDMA send details (CPU initiated)" row on the same dashboard comes from [eBPF-based RDMA tracing](./rdma-flow.md#view-the-results).
 
 ![Unifabric RDMA Pod dashboard](../../images/pods.png)
 
+You can also query by Pod in Prometheus. For example, the send throughput of one Pod:
+
+```promql
+sum(rate(unifabric_port_xmit_data{pod_namespace="tenant-a", pod_name="vllm-decode-0"}[5m]))
+```
+
 ### Unifabric RDMA AI Workload
 
-The data summed by top-level workload.
-Use the `kind`, `namespace`, and `name` variables to select one workload, for example a `PyTorchJob`.
-The dashboard shows the traffic of all Pods of this workload.
-The "RDMA send details (CPU initiated)" row comes from eBPF-based RDMA tracing.
+Select the kind, namespace, and name of a job, for example a `PyTorchJob`, to view the summary of all Pods of this job:
+
+- Summary: the read and write throughput of the job.
+- Pods: the throughput, packets, out-of-sequence packets, and sequence errors of each Pod.
+
+Use it to find the Pod with the most traffic or the most errors in a job.
+The "RDMA send details (CPU initiated)" row on the same dashboard comes from [eBPF-based RDMA tracing](./rdma-flow.md#view-the-results).
 
 ![Unifabric RDMA AI Workload dashboard](../../images/workloads.png)
 
@@ -327,15 +282,15 @@ The "RDMA send details (CPU initiated)" row comes from eBPF-based RDMA tracing.
 
 ### There are no Pod-level metrics
 
-1. Make sure that the Pod is in `FabricNode.status.rdmaPods`. See [Identify RDMA Pods](#identify-rdma-pods).
-2. If the Pod is not in the list, make sure that it meets the conditions of SR-IOV mode or host mode.
+1. Make sure that the Pod is in `FabricNode.status.rdmaPods`. See [Identify the Pods that use RDMA](#identify-the-pods-that-use-rdma).
+2. If the Pod is not in the list, make sure that it meets the conditions.
 3. If the Pod is in the list but has no Pod-level samples, make sure that the node uses containerd.
 
 ### Workload labels are empty or stop at an intermediate resource
 
-- The `topowner_*` labels are empty: add read permission for the resources in the owner chain. See [Resolve the top-level workload](#resolve-the-top-level-workload).
+- The `topowner_*` labels are empty: give read permission on the controller of the job. See [Identify the job of a Pod](#identify-the-job-of-a-pod).
 - The `*_top_owner_kind` of `rdma_flow_*` stops at a Kubernetes built-in resource, for example `ReplicaSet`: make sure that the Agent can read the resource at the next level.
-- The `*_top_owner_kind` of `rdma_flow_*` is a third-party resource, but it is not the top level: this type is not in `owners.go`.
+- The `*_top_owner_kind` of `rdma_flow_*` is a third-party resource, but it is not the top level: RDMA tracing follows only the resource types in [owners.go](../../../pkg/agent/ebpfflow/owners.go). Add the type to this file.
 
 ### The kind label is empty or wrong
 
@@ -351,8 +306,9 @@ The "RDMA send details (CPU initiated)" row comes from eBPF-based RDMA tracing.
 
 ## References
 
-- [High-speed network traffic observability](./README.md): the traffic observability scope, and the rules of the Pod identity association.
+- [AI high-speed network traffic observability](./README.md): the full scope.
 - [eBPF-based RDMA tracing](./rdma-flow.md): see the peers of RDMA traffic.
+- [Metrics reference](../../reference/metrics.md): all metrics and labels.
 - [RDMA metric model and Pod attribution design](../../design/rdma-metrics.md): the data sources, the collection flow, and the metric model.
 - [FabricNode reference](../../reference/fabricnode.md): the `status.rdmaPods` field.
-- [Helm values reference](../../../chart/README.md): all `nodeMetrics.*`, `fabricNode.*`, and `grafanaDashboard.*` parameters.
+- [Helm values reference](../../../chart/README.md): all `nodeMetrics.*`, `fabricNode.*`, `agent.workloadOwnerRules`, and `grafanaDashboard.*` parameters.

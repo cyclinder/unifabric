@@ -1,10 +1,10 @@
-# High-Speed Network Traffic Observability
+# AI High-Speed Network Traffic Observability
 
 中文版: [README.zh.md](./README.zh.md)
 
 ## Introduction
 
-Unifabric high-speed network traffic observability collects the communication traffic of AI applications on the high-speed networks.
+Unifabric AI high-speed network traffic observability collects the communication traffic of AI applications on the high-speed networks.
 It associates the traffic with Pods, namespaces, and top-level workloads.
 It covers NVLink traffic between GPUs in an NVLink domain, and traffic between nodes that goes from Pods through RDMA NICs and switches.
 It gives the results as Prometheus metrics, `RDMAEndpoint` resources, and Grafana dashboards.
@@ -13,7 +13,7 @@ In this document you learn:
 
 - Which locations on the communication path traffic observability covers, and whether Unifabric supports each location now.
 - How the data of each location is associated with one Pod identity.
-- Where to find the configuration and verification steps of each observation method.
+- Where to find the detailed document of each observation method.
 
 ## Background
 
@@ -47,7 +47,7 @@ But this path is almost a black box to the cloud-native stack:
   When a job becomes slow, operators cannot answer "whose traffic uses the bandwidth, and which jobs does it affect".
   During performance tuning, they cannot make sure that the peers, the timing, and the message sizes are as expected.
 
-High-speed network traffic observability solves these problems.
+The AI high-speed network traffic observability feature of Unifabric tries to solve these problems.
 It collects traffic at each location on the communication path, and associates the data of each location with one Pod identity.
 Operators can start from a workload and find which peers its Pods talk to, which NICs the traffic goes through, and if these NICs have congestion or errors.
 Then they can find out if the network makes a job slow, and whose traffic affects whom.
@@ -72,7 +72,7 @@ Traffic through the RDMA NICs starts when the application process in a Pod submi
 | --- | --- | --- | --- |
 | ① NVLink | NVLink traffic between GPUs in an NVLink domain | Planned | None |
 | ② RDMA submit path | RDMA flows between Pods: who talks to whom, how much traffic, and how large each send is | Supported | [eBPF-based RDMA tracing](./rdma-flow.md), [RDMA send event storage](./rdma-flow-events.md) |
-| ③ Host and Pod RDMA NICs | Throughput, congestion, errors, and retransmissions of the NICs | Supported | [RDMA metrics](./rdma-metrics.md) |
+| ③ Host and Pod RDMA NICs | Throughput, congestion, errors, and retransmissions of the NICs | Supported | [Host and Pod RDMA NIC metrics](./rdma-metrics.md) |
 | ④ Switches | RDMA traffic on switch ports | Planned | None |
 
 The traffic of the Scale-out network and the Storage network goes through ② to ④.
@@ -120,12 +120,12 @@ Limits:
 
 | Item | Description |
 | --- | --- |
-| Observed object | The RDMA NIC of the Pod (an SR-IOV VF, or the host NIC that Pods in host mode share) and the RDMA NIC of the host (PF) |
+| Observed object | The RDMA NICs of the host and the RDMA devices that Pods use |
 | Data source | RDMA counters in sysfs, and ethtool priority counters |
-| How it is associated with Pods | Pod NIC: the RDMA Pods in `FabricNode.status.rdmaPods`. Host NIC: the node. A VF is associated with its PF through the `parent_ifname` label. |
-| Output | `unifabric_*` metrics, and the RDMA Cluster, Node, Pod, and AI Workload dashboards |
+| How it is associated with Pods | The Agent finds the Pods that use RDMA, and reads the counters of the RDMA devices in the Pods |
+| Output | `unifabric_*` metrics, and the RDMA Cluster, Node, Pod, and AI Workload dashboards in Grafana |
 | Support status | Supported |
-| Document | [RDMA metrics](./rdma-metrics.md) |
+| Document | [Host and Pod RDMA NIC metrics](./rdma-metrics.md) |
 
 This item reads the throughput, congestion (ECN, CNP), error and retransmission counters, and the pause and discard counters of each priority.
 The `kind` label records the network of the NIC: `scaleOut`, `storage`, or `scaleUp`.
@@ -146,63 +146,22 @@ Then you can answer "which job does this traffic on the switch belong to".
 
 ## Associate with the Pod identity
 
-Each observation method above gets the data of one location: eBPF tracing gets the RDMA flows between Pods, and NIC observability gets the counters of each NIC.
-Unifabric adds the Pod identity to each record at collection time: `pod_namespace`, `pod_name`, and the top-level workload (`topowner_*` or `*_top_owner_*`).
-So you can query the data of different locations with the same Pod or the same workload. You do not associate them manually.
+Each observation method above collects the data of one location on the communication path.
+Unifabric adds the Pod identity to each record at collection time: the Pod, the namespace, and the training or inference job of the Pod.
+So you can query the data of different locations with the same Pod or the same job.
+In Grafana, select a Pod or a job to see its NIC traffic and its communication with other Pods together.
 
-### What you must configure
+For how each observation method is associated with Pods, and what you can see in Grafana, see:
 
-Most scenarios need no configuration:
-
-- Pod identity is found automatically. The Agent finds the Pods that use RDMA (SR-IOV or host mode) from `FabricNode.status.rdmaPods`. eBPF tracing finds the Pod from the cgroup of the sending process.
-- The top-level workload is resolved automatically. By default, the chart lets the Agent read Kubernetes built-in workloads and common workloads such as Kubeflow, JobSet, LeaderWorkerSet, KubeRay, and Spark Operator.
-
-Only one case needs manual configuration: your workload controller is not in the default list, for example Argo Workflows.
-Add its API group and plural resource names to `agent.workloadOwnerRules`:
-
-```yaml
-agent:
-  workloadOwnerRules:
-    argoproj.io: [workflows]
-```
-
-For the detailed rules and troubleshooting, see [RDMA metrics](./rdma-metrics.md#pod-and-workload-attribution).
-
-### Result
-
-Open the Unifabric RDMA Pod dashboard and select a namespace and a Pod. One page shows the traffic of this Pod at each location:
-
-| Row | Observation location | Content |
-| --- | --- | --- |
-| Summary, RDMA basic statistics, RDMA error statistics | ③ Host and Pod RDMA NICs | Throughput, bandwidth usage, congestion, and error counters of the NIC of this Pod |
-| RDMA send details (CPU initiated) | ② RDMA submit path | Which Pods this Pod talks to, the bytes of each flow, the message size distribution, and the latest send records |
-
-![Unifabric RDMA Pod dashboard](../../images/pods.png)
-
-Open the Unifabric RDMA AI Workload dashboard and select the kind, namespace, and name of a workload. It shows the summary of all Pods of this job:
-the throughput and errors of each Pod, and the outgoing RDMA flows and peer Pods of the job.
-
-![Unifabric RDMA AI Workload dashboard](../../images/workloads.png)
-
-You can also query by Pod directly in Prometheus. For example, the send throughput of the NIC of one Pod, and the bytes it sends to each peer:
-
-```promql
-sum(rate(unifabric_port_xmit_data{pod_namespace="tenant-a", pod_name="vllm-decode-0"}[5m]))
-sum by (dst_pod_namespace, dst_pod_name) (rate(rdma_flow_bytes_total{src_pod_namespace="tenant-a", src_pod_name="vllm-decode-0"}[5m]))
-```
-
-For example, when a `PyTorchJob` becomes slow:
-
-1. Select the job in the AI Workload dashboard, and find the Pod with the most traffic and its peer.
-2. Switch to the Pod dashboard, and view the congestion and error counters of the NIC of this Pod.
-3. Use the topology labels of the Node to find the other nodes under the same leaf switch. In the RDMA Cluster dashboard, check the traffic of other jobs on these nodes.
+- [Host and Pod RDMA NIC metrics](./rdma-metrics.md#associate-with-pods-and-jobs)
+- [eBPF-based RDMA tracing](./rdma-flow.md#view-the-results)
 
 ## References
 
-- [RDMA metrics](./rdma-metrics.md), [eBPF-based RDMA tracing](./rdma-flow.md), [RDMA send event storage](./rdma-flow-events.md): the principle, configuration, verification, and troubleshooting of each observation method.
+- [Host and Pod RDMA NIC metrics](./rdma-metrics.md), [eBPF-based RDMA tracing](./rdma-flow.md), [RDMA send event storage](./rdma-flow-events.md): the principle, configuration, verification, and troubleshooting of each observation method.
 - [Architecture](../../concepts/architecture.md): how the Agent, the Controller, and the other components relate.
 - [Topology discovery concepts](../../concepts/topology-discovery.md): the switches that nodes and NICs connect to.
 - [RDMA metric model and Pod attribution design](../../design/rdma-metrics.md), [eBPF RDMA flow attribution design](../../design/rdma-flow.md).
-- [RDMAEndpoint reference](../../reference/rdmaendpoint.md), [FabricNode reference](../../reference/fabricnode.md).
+- [Metrics reference](../../reference/metrics.md), [RDMAEndpoint reference](../../reference/rdmaendpoint.md), [FabricNode reference](../../reference/fabricnode.md).
 - [Helm values reference](../../../chart/README.md): all `nodeMetrics.*`, `agent.ebpfFlow.*`, `ebpfFlowEventCollector.*`, and `grafanaDashboard.*` parameters.
 - [Roadmap](../../roadmap.md): planned features.

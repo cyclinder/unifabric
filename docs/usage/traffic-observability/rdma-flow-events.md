@@ -11,13 +11,12 @@ This document tells you how to choose a storage backend, and how to configure, v
 
 | Item | Description |
 | --- | --- |
-| Observation location | ② RDMA submit path |
 | Applicable networks | Scale-out, Storage |
 | Data source | The probes of eBPF-based RDMA tracing, which put each send in a BPF ring buffer |
 | Observed object | Each CPU-initiated RDMA send |
 | Output | Events in a ClickHouse table or an Elasticsearch data stream, and the `rdma_flow_sends_total` and `rdma_flow_send_bytes` metrics |
 | Cluster side requirements | eBPF-based RDMA tracing is enabled. For the bundled ClickHouse, the cluster has a default StorageClass. |
-| Helm configuration | `agent.ebpfFlow.flowEvents.enabled=true`, and `ebpfFlowEventCollector.clickhouse.enabled=true` or `ebpfFlowEventCollector.elasticsearch.enabled=true` |
+| Default state | Disabled by default |
 
 The data goes through this path:
 
@@ -25,27 +24,16 @@ The data goes through this path:
 2. The Agent sends the events to the Event Collector through OTLP gRPC. The Event Collector is an OpenTelemetry Collector that the chart deploys. Its Service is `unifabric-ebpf-flow-event-collector`.
 3. The Event Collector writes the events to ClickHouse, to Elasticsearch, or to both.
 
-Each event has these fields:
-
-| Field | Meaning |
-| --- | --- |
-| `Timestamp` | The send time, in nanoseconds. |
-| `node` | The node name. |
-| `tgid`, `qpn` | The ID of the sending process and the QP number. |
-| `bytes`, `wrs` | The bytes and WRs of one submission. |
-| `count` | The number of submissions that this record merges. See [Tune the event settings](#tune-the-event-settings). |
-| `kind` | The submit method, for example `post_send` or `wr_set_sge`. |
-| `src_device`, `dst_device` | The source RDMA device and the destination RDMA device. |
-| `src_pod_*`, `dst_pod_*` | The source Pod, the destination Pod, and their top-level workloads. |
+For the fields of an event, see the [metrics reference](../../reference/metrics.md#rdma-send-event-fields).
 
 Limits:
 
 - The bundled ClickHouse and Elasticsearch are only for tests and evaluation. They have one replica, no backups, and fixed credentials.
 - The Agent can send events only to the Event Collector that the chart deploys. You cannot configure an external Collector.
 - The chart supports only ClickHouse and Elasticsearch. It does not support Kafka.
-- Applications that send often make many events. Use sampling and merging to decrease the number of events. See [Tune the event settings](#tune-the-event-settings).
+- Applications that send often make many events. You can use sampling and merging to decrease the number of events. See `agent.ebpfFlow.flowEvents.*` in the [Helm values reference](../../../chart/README.md).
 
-RDMA send event storage covers ② the RDMA submit path in the traffic observability scope. For the full scope and the observation methods of the other locations, see [High-speed network traffic observability](./README.md#traffic-observability-scope).
+This item is part of AI high-speed network traffic observability. For the full scope, see [AI high-speed network traffic observability](./README.md#traffic-observability-scope).
 
 ## Prerequisites
 
@@ -63,11 +51,13 @@ When both are enabled, they get the same events. If one backend is not available
 | Use it for | Aggregate analysis with SQL | Correlation with logs, and viewing send records in Grafana |
 | Disk usage | Smaller | Larger |
 | Grafana dashboards | The send record panels in the dashboards do not query ClickHouse | The message size, process and QP, and latest send record panels in the Pod and AI Workload dashboards query Elasticsearch |
-| Data retention | `ebpfFlowEventCollector.clickhouse.ttlDays`, 3 days by default | ILM policy: by default, roll over every day or when a primary shard reaches 10 GB, and delete 3 days after rollover |
+| Data retention | 3 days by default | 3 days by default |
 | Storage of the bundled instance | PVC, `20Gi` by default | `emptyDir`. The data is lost when the Pod is created again |
 
 If you do not set an external endpoint, the chart deploys a bundled instance.
 If you set an external endpoint, the chart does not deploy a bundled instance.
+
+For the data retention, and the resources and storage of the bundled instances, see `ebpfFlowEventCollector.*` in the [Helm values reference](../../../chart/README.md).
 
 ## Configuration
 
@@ -198,32 +188,6 @@ If you manage the index template yourself, set `ebpfFlowEventCollector.elasticse
 > The chart creates this data source only when `grafanaDashboard.kind=GrafanaDashboard` (default).
 > If you install the dashboards as `ConfigMap`, create an Elasticsearch data source with the uid `unifabric-elasticsearch` in Grafana manually.
 
-## Tune the event settings
-
-These parameters control the number of events and how long they are kept:
-
-| Parameter | Default | Description |
-| --- | --- | --- |
-| `agent.ebpfFlow.flowEvents.sample` | `1` | Store one event in every N. `rdma_flow_sends_total` and `rdma_flow_send_bytes` still count every event. |
-| `agent.ebpfFlow.flowEvents.aggregate` | `0s` | In this time window, merge identical submissions on the same QP into one record, and keep the number in `count`. `0s` means no merging. |
-| `agent.ebpfFlow.flowEvents.queue` | `200000` | The rows buffered per sink. When the queue is full, new events are dropped. |
-| `agent.ebpfFlow.flowEvents.batch` | `10000` | The rows per export batch. |
-| `agent.ebpfFlow.flowEvents.flush` | `1s` | The maximum time that a batch that is not full waits. |
-| `ebpfFlowEventCollector.clickhouse.ttlDays` | `3` | The number of days that ClickHouse keeps the events. |
-| `ebpfFlowEventCollector.elasticsearch.schema.ilm.*` | See the description | The rollover and delete policy of the Elasticsearch data stream. The defaults are `rolloverMaxAge=1d`, `rolloverMaxPrimaryShardSize=10gb`, and `deleteMinAge=3d`. |
-
-For example, if the application submits many messages of the same size each second, set a 1 second merge window:
-
-```bash
-helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
-  --namespace unifabric-system \
-  --reuse-values \
-  --set agent.ebpfFlow.flowEvents.aggregate=1s \
-  --wait
-```
-
-> Note: With merging, use `sum(count)` to count sends. Do not use `count()`.
-
 ## Verification
 
 1. Make sure that the Event Collector and the bundled backends run:
@@ -318,9 +282,8 @@ helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
 
 If `rdma_flow_agent_send_events_dropped` keeps increasing, events are made faster than they are written, or the connection between the Agent and the Event Collector is broken.
 
-- Increase `agent.ebpfFlow.flowEvents.sample`, or set `agent.ebpfFlow.flowEvents.aggregate`, to decrease the number of events.
-- Increase `agent.ebpfFlow.flowEvents.queue` to absorb bursts.
-- Increase `ebpfFlowEventCollector.resources`, and check the write performance of the backend.
+- Use sampling or merging to decrease the number of events, or increase the event queue of the Agent to absorb bursts. See `agent.ebpfFlow.flowEvents.*` in the [Helm values reference](../../../chart/README.md).
+- Increase the resources of the Event Collector, and check the write performance of the backend. See `ebpfFlowEventCollector.resources` in the [Helm values reference](../../../chart/README.md).
 
 ### The send record panels in the dashboards have no data
 
@@ -334,7 +297,8 @@ If `rdma_flow_agent_send_events_dropped` keeps increasing, events are made faste
 
 ## References
 
-- [High-speed network traffic observability](./README.md): the traffic observability scope.
+- [AI high-speed network traffic observability](./README.md): the full scope.
 - [eBPF-based RDMA tracing](./rdma-flow.md): the prerequisite of send event storage.
+- [Metrics reference](../../reference/metrics.md#rdma-send-event-fields): the fields of an event.
 - [eBPF RDMA flow attribution design](../../design/rdma-flow.md#6-send-event-pipeline): the design of the send event pipeline.
 - [Helm values reference](../../../chart/README.md): all `agent.ebpfFlow.flowEvents.*` and `ebpfFlowEventCollector.*` parameters.
