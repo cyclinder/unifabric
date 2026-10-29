@@ -95,6 +95,22 @@ This item will collect the NVLink traffic between GPUs, and associate it with th
 
 > Note: Topology discovery records the NVLink domain as tier 1 of the Scale-up network. See [Topology discovery concepts](../../concepts/topology-discovery.md).
 
+### Host and Pod RDMA NIC observability
+
+| Item | Description |
+| --- | --- |
+| Observed object | The RDMA NICs of the host and the RDMA devices that Pods use |
+| Data source | RDMA counters in sysfs, and ethtool priority counters |
+| How it is associated with Pods | The Agent finds the Pods that use RDMA, and reads the counters of the RDMA devices in the Pods |
+| Output | `unifabric_*` metrics, and the RDMA Cluster, Node, Pod, and AI Workload dashboards in Grafana |
+| Support status | Supported |
+| Document | [Host and Pod RDMA NIC metrics](./rdma-metrics.md) |
+
+This item reads the throughput, congestion (ECN, CNP), error and retransmission counters, and the pause and discard counters of each priority.
+The `kind` label records the network of the NIC: `scaleOut`, `storage`, or `scaleUp`.
+It tells you how much each NIC and each Pod sends and receives, and if there is congestion or errors. It does not tell you where the traffic goes.
+[eBPF-based RDMA tracing](#ebpf-based-rdma-tracing) gives the peers.
+
 ### eBPF-based RDMA tracing
 
 | Item | Description |
@@ -115,22 +131,6 @@ Limits:
 - It covers only CPU-initiated RDMA. GPU-initiated RDMA, for example GDAKI and IBGDA, and kernel-space RDMA storage protocols, for example NVMe over RDMA, do not use `libibverbs`, so the probes do not see them. The NIC counters still record this traffic.
 - An InfiniBand network needs `agent.ebpfFlow.endpoint.allPods=true` to resolve the destination Pod.
 - On the Storage network, the RDMA flows of user-space storage clients are observable, but this scenario is not verified yet.
-
-### Host and Pod RDMA NIC observability
-
-| Item | Description |
-| --- | --- |
-| Observed object | The RDMA NICs of the host and the RDMA devices that Pods use |
-| Data source | RDMA counters in sysfs, and ethtool priority counters |
-| How it is associated with Pods | The Agent finds the Pods that use RDMA, and reads the counters of the RDMA devices in the Pods |
-| Output | `unifabric_*` metrics, and the RDMA Cluster, Node, Pod, and AI Workload dashboards in Grafana |
-| Support status | Supported |
-| Document | [Host and Pod RDMA NIC metrics](./rdma-metrics.md) |
-
-This item reads the throughput, congestion (ECN, CNP), error and retransmission counters, and the pause and discard counters of each priority.
-The `kind` label records the network of the NIC: `scaleOut`, `storage`, or `scaleUp`.
-It tells you how much each NIC and each Pod sends and receives, and if there is congestion or errors. It does not tell you where the traffic goes.
-[eBPF-based RDMA tracing](#ebpf-based-rdma-tracing) gives the peers.
 
 ### Switch RDMA traffic observability
 

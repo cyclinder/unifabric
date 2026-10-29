@@ -4,9 +4,8 @@ English version: [rdma-flow-events.md](./rdma-flow-events.md)
 
 ## 简介
 
-[基于 eBPF 的 RDMA tracing](./rdma-flow.zh.md)导出预先汇总的流指标。
-RDMA 发送事件存储是它的扩展: Agent 把应用的每次 RDMA 发送写成一条事件,存入数据库。
-运维用这些事件分析 Pod 通信的时序、对端和消息大小。
+[基于 eBPF 的 RDMA tracing](./rdma-flow.zh.md)导出的是预先汇总的流指标,RDMA 发送事件存储在此基础上更进一步:Agent 把应用的每次 RDMA 发送写成一条事件并存入数据库,运维可以用这些事件分析 Pod 通信的时序、对端和消息大小。
+
 本文说明如何选择存储后端,以及如何配置、验证和排查发送事件存储。
 
 | 项目 | 说明 |
@@ -21,30 +20,29 @@ RDMA 发送事件存储是它的扩展: Agent 把应用的每次 RDMA 发送写�
 数据按以下路径流动:
 
 1. Agent 从 BPF ring buffer 读取每次发送,解析源 Pod 和目的 Pod。
-2. Agent 通过 OTLP gRPC 把事件发给 Event Collector。Event Collector 是 Chart 部署的 OpenTelemetry Collector,Service 为 `unifabric-ebpf-flow-event-collector`。
+2. Agent 通过 OTLP gRPC 把事件发给 Event Collector。Event Collector 是 Chart 部署的 OpenTelemetry Collector,对应的 Service 为 `unifabric-ebpf-flow-event-collector`。
 3. Event Collector 把事件写入 ClickHouse、Elasticsearch,或者同时写入两者。
 
-事件的字段,参见[指标参考](../../reference/metrics.zh.md#rdma-发送事件字段)。
+事件的字段参见[指标参考](../../reference/metrics.zh.md#rdma-发送事件字段)。
 
 限制:
 
-- 内置的 ClickHouse 和 Elasticsearch 只用于测试和评估。它们只有一个副本,没有备份,使用固定的凭据。
+- 内置的 ClickHouse 和 Elasticsearch 只有一个副本,没有备份,并且使用固定的凭据,只适合测试和评估。
 - Agent 只能把事件发给 Chart 部署的 Event Collector,不能配置外部的 Collector。
-- Chart 只支持 ClickHouse 和 Elasticsearch,不支持 Kafka。
-- 发送频繁的应用会产生大量事件。可以用采样和合并降低事件量,参见 [Helm values 参考](../../../chart/README.md)中的 `agent.ebpfFlow.flowEvents.*`。
+- Chart 目前只支持 ClickHouse 和 Elasticsearch,不支持 Kafka。
+- 发送频繁的应用会产生大量事件,可以通过采样和合并降低事件量,参见 [Helm values 参考](../../../chart/README.md)中的 `agent.ebpfFlow.flowEvents.*`。
 
-这一项是 AI 高速网络流量观测的一部分。完整的观测范围,参见 [AI 高速网络流量观测](./README.zh.md#流量观测范围)。
+本功能是 AI 高速网络流量观测的一部分,完整的观测范围参见 [AI 高速网络流量观测](./README.zh.md#流量观测范围)。
 
 ## 前提条件
 
 - 已按[基于 eBPF 的 RDMA tracing](./rdma-flow.zh.md#配置)开启 `agent.ebpfFlow.enabled=true`。
-- 使用外置后端时,已准备好 ClickHouse 或 Elasticsearch,并且 Event Collector 能连接它。
-- 使用内置 ClickHouse 时,集群有默认 StorageClass,或者你指定 `ebpfFlowEventCollector.clickhouse.bundled.persistence.storageClassName`。
+- 使用外置后端时,已准备好 ClickHouse 或 Elasticsearch,并且 Event Collector 能够连接到它。
+- 使用内置 ClickHouse 时,集群有默认 StorageClass,或者已通过 `ebpfFlowEventCollector.clickhouse.bundled.persistence.storageClassName` 指定 StorageClass。
 
 ## 选择存储后端
 
-两个后端可以单独使用,也可以同时使用。
-同时启用时,两者收到相同的事件。一个后端不可用,不影响另一个。
+两个后端可以单独使用,也可以同时使用。同时启用时,两者会收到相同的事件,其中一个不可用也不会影响另一个。
 
 | 对比项 | ClickHouse | Elasticsearch |
 | --- | --- | --- |
@@ -54,10 +52,7 @@ RDMA 发送事件存储是它的扩展: Agent 把应用的每次 RDMA 发送写�
 | 数据保留 | 默认 3 天 | 默认 3 天 |
 | 内置实例的存储 | PVC,默认 `20Gi` | `emptyDir`,Pod 重建后数据丢失 |
 
-不填写外置端点时,Chart 部署内置实例。
-填写外置端点后,Chart 不部署内置实例。
-
-数据保留时间、内置实例的资源和存储等参数,参见 [Helm values 参考](../../../chart/README.md)中的 `ebpfFlowEventCollector.*`。
+不填写外置端点时,Chart 会部署内置实例;填写外置端点后,Chart 就不再部署内置实例。数据保留时间、内置实例的资源和存储等参数,参见 [Helm values 参考](../../../chart/README.md)中的 `ebpfFlowEventCollector.*`。
 
 ## 配置
 
@@ -73,13 +68,13 @@ helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
   --wait
 ```
 
-Chart 部署单副本的 ClickHouse `unifabric-ebpf-flow-clickhouse`:
+Chart 会部署一个单副本的 ClickHouse `unifabric-ebpf-flow-clickhouse`:
 
 - 用户为 `rdma`,密码为 `rdma-flow`。
 - 事件写入 `rdma.rdma_sends` 表。
 - 数据保存在 `20Gi` 的 PVC 中,使用集群默认 StorageClass。
 
-Chart 同时安装"Unifabric / ClickHouse 服务器"仪表盘,用于查看内置 ClickHouse 的状态。
+Chart 还会安装"Unifabric / ClickHouse 服务器"仪表盘,用于查看内置 ClickHouse 的状态。
 
 ### Case 2: 使用内置 Elasticsearch
 
@@ -93,13 +88,13 @@ helm upgrade --install unifabric oci://ghcr.io/unifabric-io/charts/unifabric \
   --wait
 ```
 
-Chart 部署单节点的 Elasticsearch `unifabric-elasticsearch`:
+Chart 会部署一个单节点的 Elasticsearch `unifabric-elasticsearch`:
 
 - 用户为 `elastic`,密码为 `rdma-flow`。
 - 事件写入 `rdma-sends` data stream。
-- 数据默认保存在 `emptyDir` 中,Pod 重建后丢失。要使用 PVC,设置 `ebpfFlowEventCollector.elasticsearch.bundled.persistence.enabled=true`。
+- 数据默认保存在 `emptyDir` 中,Pod 重建后会丢失。如果要使用 PVC,请设置 `ebpfFlowEventCollector.elasticsearch.bundled.persistence.enabled=true`。
 
-Chart 同时安装"Unifabric / Elasticsearch 服务器"仪表盘,用于查看内置 Elasticsearch 的状态。
+Chart 还会安装"Unifabric / Elasticsearch 服务器"仪表盘,用于查看内置 Elasticsearch 的状态。
 
 ### Case 3: 使用外置 ClickHouse
 
@@ -110,7 +105,7 @@ Chart 同时安装"Unifabric / Elasticsearch 服务器"仪表盘,用于查看内
      --from-literal=password='<clickhouse-password>'
    ```
 
-2. 把后端配置写入 `rdma-flow-events.yaml`。`endpoint` 使用 ClickHouse 原生协议端点:
+2. 把后端配置写入 `rdma-flow-events.yaml`,其中 `endpoint` 使用 ClickHouse 原生协议端点:
 
    ```yaml
    agent:
@@ -138,11 +133,9 @@ Chart 同时安装"Unifabric / Elasticsearch 服务器"仪表盘,用于查看内
      --wait
    ```
 
-Event Collector 启动前,init 容器在 ClickHouse 中创建数据库和表。
-用户 `rdma` 需要建库和建表的权限。
-如果你自己管理表结构,设置 `ebpfFlowEventCollector.clickhouse.schema.create=false`。
+Event Collector 启动前,init 容器会在 ClickHouse 中创建数据库和表,因此用户 `rdma` 需要有建库和建表的权限。如果你自己管理表结构,请设置 `ebpfFlowEventCollector.clickhouse.schema.create=false`。
 
-> 注意: 也可以直接设置 `ebpfFlowEventCollector.clickhouse.password`。生产环境建议使用 Secret。
+> 注意: 也可以直接设置 `ebpfFlowEventCollector.clickhouse.password`,但生产环境建议使用 Secret。
 
 ### Case 4: 使用外置 Elasticsearch
 
@@ -181,12 +174,9 @@ Event Collector 启动前,init 容器在 ClickHouse 中创建数据库和表。
      --wait
    ```
 
-Event Collector 启动前,init 容器为 data stream 写入索引模板和 ILM 策略。
-如果你自己管理索引模板,设置 `ebpfFlowEventCollector.elasticsearch.schema.create=false`。
+Event Collector 启动前,init 容器会为 data stream 写入索引模板和 ILM 策略。如果你自己管理索引模板,请设置 `ebpfFlowEventCollector.elasticsearch.schema.create=false`。
 
-> 注意: Pod 和 AI Workload 仪表盘中的发送记录面板通过 `GrafanaDatasource` 查询 Elasticsearch。
-> Chart 只在 `grafanaDashboard.kind=GrafanaDashboard` (默认) 时创建这个数据源。
-> 使用 `ConfigMap` 安装仪表盘时,需要在 Grafana 中手动创建 uid 为 `unifabric-elasticsearch` 的 Elasticsearch 数据源。
+> 注意: Pod 和 AI Workload 仪表盘中的发送记录面板通过 `GrafanaDatasource` 查询 Elasticsearch,而 Chart 只在 `grafanaDashboard.kind=GrafanaDashboard` (默认) 时创建这个数据源。如果使用 `ConfigMap` 安装仪表盘,需要在 Grafana 中手动创建 uid 为 `unifabric-elasticsearch` 的 Elasticsearch 数据源。
 
 ## 验证
 
@@ -280,14 +270,14 @@ Event Collector 启动前,init 容器为 data stream 写入索引模板和 ILM �
 
 ### 事件被丢弃
 
-`rdma_flow_agent_send_events_dropped` 持续增长,说明事件产生得比写入快,或者 Agent 与 Event Collector 之间的连接断开。
+如果 `rdma_flow_agent_send_events_dropped` 持续增长,说明事件产生的速度超过了写入速度,或者 Agent 与 Event Collector 之间的连接已断开。
 
-- 用采样或合并降低事件量,或者增大 Agent 的事件队列,吸收突发流量。参见 [Helm values 参考](../../../chart/README.md)中的 `agent.ebpfFlow.flowEvents.*`。
-- 增大 Event Collector 的资源,并检查后端的写入性能。参见 [Helm values 参考](../../../chart/README.md)中的 `ebpfFlowEventCollector.resources`。
+- 通过采样或合并降低事件量,或者增大 Agent 的事件队列以吸收突发流量,参见 [Helm values 参考](../../../chart/README.md)中的 `agent.ebpfFlow.flowEvents.*`。
+- 增大 Event Collector 的资源,并检查后端的写入性能,参见 [Helm values 参考](../../../chart/README.md)中的 `ebpfFlowEventCollector.resources`。
 
 ### 仪表盘中的发送记录面板没有数据
 
-1. 确认启用了 Elasticsearch 后端。ClickHouse 中的事件不显示在这些面板中。
+1. 确认已启用 Elasticsearch 后端,ClickHouse 中的事件不会显示在这些面板中。
 2. 确认 `ebpfFlowEventCollector.elasticsearch.grafanaDatasource.enabled=true` (默认),并且 `grafanaDashboard.kind=GrafanaDashboard`。
 3. 确认 `GrafanaDatasource` 存在:
 
