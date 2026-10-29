@@ -49,8 +49,8 @@ Unifabric 的 AI 高速网络流量观测功能尝试解决这些问题:它在�
 | 观测位置 | 观测内容 | 支持情况 | 文档 |
 | --- | --- | --- | --- |
 | ① NVLink | NVLink 域内 GPU 之间的 NVLink 流量 | 规划中 | 无 |
-| ② RDMA 提交路径 | Pod 之间的 RDMA 流: 谁和谁通信、流量多大、每次发送多大 | 已支持 | [基于 eBPF 的 RDMA tracing](./rdma-flow.zh.md)、[RDMA 发送事件存储](./rdma-flow-events.zh.md) |
-| ③ 主机与 Pod 的 RDMA 网卡 | 网卡的吞吐、拥塞、错误和重传 | 已支持 | [主机与 Pod 的 RDMA 网卡指标](./rdma-metrics.zh.md) |
+| ② RDMA 提交路径 | Pod 之间的 RDMA 流: 谁和谁通信、流量多大、每次发送多大 | 已支持 (Alpha) | [基于 eBPF 的 RDMA tracing](./rdma-flow.zh.md)、[RDMA 发送事件存储](./rdma-flow-events.zh.md) |
+| ③ 主机与 Pod 的 RDMA 网卡 | 网卡的吞吐、拥塞、错误和重传 | 已支持 (Stable) | [主机与 Pod 的 RDMA 网卡指标](./rdma-metrics.zh.md) |
 | ④ 交换机 | 交换机端口上的 RDMA 流量 | 规划中 | 无 |
 
 其中,Scale-out 网络和 Storage 网络的流量经过 ② 到 ④,Scale-up 网络的流量经过 ①。
@@ -79,7 +79,7 @@ NVLink 域的范围取决于服务器:
 | 数据来源 | sysfs 中的 RDMA 计数器,ethtool 优先级计数器 |
 | 关联到 Pod 的方式 | Agent 识别使用 RDMA 的 Pod,读取 Pod 内 RDMA 设备的计数器 |
 | 输出 | `unifabric_*` 指标,Grafana 中的 RDMA 集群、节点、Pod 和 AI Workload 仪表盘 |
-| 支持情况 | 已支持 |
+| 支持情况 | 已支持 (Stable) |
 | 文档 | [主机与 Pod 的 RDMA 网卡指标](./rdma-metrics.zh.md) |
 
 这一项读取网卡的吞吐、拥塞 (ECN、CNP)、错误与重传计数器,以及各优先级的 pause 和丢弃计数器,并通过 `kind` 标签记录网卡所属的网络 (`scaleOut`、`storage` 或 `scaleUp`)。它能告诉你每张网卡和每个 Pod 收发了多少流量、有没有拥塞和错误,但不能告诉你流量发给了谁;通信对端由[基于 eBPF 的 RDMA tracing](#基于-ebpf-的-rdma-tracing) 提供。
@@ -92,7 +92,7 @@ NVLink 域的范围取决于服务器:
 | 数据来源 | `libibverbs` 提交路径上的 eBPF uprobe |
 | 关联到 Pod 的方式 | 源 Pod: 发送进程所在的 cgroup。目的 Pod: QP 的目的地址,RoCE 网络使用 GID,InfiniBand 网络使用 LID。 |
 | 输出 | `rdma_flow_*` 指标和 `RDMAEndpoint` 资源。可选: 把每次发送存入 ClickHouse 或 Elasticsearch。 |
-| 支持情况 | 已支持 |
+| 支持情况 | 已支持 (Alpha) |
 | 文档 | [基于 eBPF 的 RDMA tracing](./rdma-flow.zh.md)、[RDMA 发送事件存储](./rdma-flow-events.zh.md) |
 
 RDMA 通信绕过内核,网卡上只有总量计数。这一项在应用提交 RDMA 请求的位置挂载 eBPF 探针,无需修改应用就能还原 Pod 之间的 RDMA 流,包括谁和谁通信、何时通信、每次发送多大,让 RDMA 通信像 TCP 连接一样可观测。
@@ -108,9 +108,9 @@ RDMA 通信绕过内核,网卡上只有总量计数。这一项在应用提交 R
 | 项目 | 说明 |
 | --- | --- |
 | 观测对象 | Scale-out 网络和 Storage 网络中,交换机端口上的 RDMA 流量 |
-| 支持情况 | 规划中,参见 [#49](https://github.com/unifabric-io/unifabric/issues/49) |
+| 支持情况 | 规划中,参见 [#49](https://github.com/unifabric-io/unifabric/issues/49) 和 [#3](https://github.com/unifabric-io/unifabric/pull/3) |
 
-这一项计划在交换机上采集流量样本,并把采样到的 RDMA 流量关联到 Pod,从而回答"交换机上的这段流量属于哪个任务"。
+这一项计划在交换机上采集流量样本,并把采样到的 RDMA 流量关联到 Pod。它不只回答"交换机上的这段流量属于哪个任务":结合主机与 Pod 的 RDMA 网卡观测和基于 eBPF 的 RDMA tracing,它能把一个 Pod 在主机网卡和沿途每台交换机上的 RDMA 指标串联起来,呈现这段流量从源 Pod 出发、经过哪些交换机和端口、到达目的 Pod 的端到端链路,从而定位拥塞或错误发生在路径的哪一段。
 
 > 注意: 目前可以用拓扑发现确定网卡连接的交换机。拓扑发现会在 Node label 中记录节点所在的交换机域;使用 LLDP 发现时,`FabricNode` 还会记录每张网卡连接的交换机和端口。参见[拓扑发现概念](../../concepts/topology-discovery.zh.md)。
 

@@ -1,5 +1,7 @@
 # 主机与 Pod 的 RDMA 网卡指标
 
+> 成熟度: Stable
+
 English version: [rdma-metrics.md](./rdma-metrics.md)
 
 ## 简介

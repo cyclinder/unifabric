@@ -71,8 +71,8 @@ Traffic through the RDMA NICs starts when the application process in a Pod submi
 | Observation location | Observed data | Support status | Document |
 | --- | --- | --- | --- |
 | ① NVLink | NVLink traffic between GPUs in an NVLink domain | Planned | None |
-| ② RDMA submit path | RDMA flows between Pods: who talks to whom, how much traffic, and how large each send is | Supported | [eBPF-based RDMA tracing](./rdma-flow.md), [RDMA send event storage](./rdma-flow-events.md) |
-| ③ Host and Pod RDMA NICs | Throughput, congestion, errors, and retransmissions of the NICs | Supported | [Host and Pod RDMA NIC metrics](./rdma-metrics.md) |
+| ② RDMA submit path | RDMA flows between Pods: who talks to whom, how much traffic, and how large each send is | Supported (Alpha) | [eBPF-based RDMA tracing](./rdma-flow.md), [RDMA send event storage](./rdma-flow-events.md) |
+| ③ Host and Pod RDMA NICs | Throughput, congestion, errors, and retransmissions of the NICs | Supported (Stable) | [Host and Pod RDMA NIC metrics](./rdma-metrics.md) |
 | ④ Switches | RDMA traffic on switch ports | Planned | None |
 
 The traffic of the Scale-out network and the Storage network goes through ② to ④.
@@ -103,7 +103,7 @@ This item will collect the NVLink traffic between GPUs, and associate it with th
 | Data source | RDMA counters in sysfs, and ethtool priority counters |
 | How it is associated with Pods | The Agent finds the Pods that use RDMA, and reads the counters of the RDMA devices in the Pods |
 | Output | `unifabric_*` metrics, and the RDMA Cluster, Node, Pod, and AI Workload dashboards in Grafana |
-| Support status | Supported |
+| Support status | Supported (Stable) |
 | Document | [Host and Pod RDMA NIC metrics](./rdma-metrics.md) |
 
 This item reads the throughput, congestion (ECN, CNP), error and retransmission counters, and the pause and discard counters of each priority.
@@ -119,7 +119,7 @@ It tells you how much each NIC and each Pod sends and receives, and if there is 
 | Data source | eBPF uprobes on the submit path of `libibverbs` |
 | How it is associated with Pods | Source Pod: the cgroup of the sending process. Destination Pod: the destination address of the QP. A RoCE network uses the GID. An InfiniBand network uses the LID. |
 | Output | `rdma_flow_*` metrics and `RDMAEndpoint` resources. Optional: each send stored in ClickHouse or Elasticsearch. |
-| Support status | Supported |
+| Support status | Supported (Alpha) |
 | Document | [eBPF-based RDMA tracing](./rdma-flow.md), [RDMA send event storage](./rdma-flow-events.md) |
 
 RDMA traffic bypasses the kernel, and the NIC has only total counters.
@@ -137,10 +137,12 @@ Limits:
 | Item | Description |
 | --- | --- |
 | Observed object | RDMA traffic on switch ports in the Scale-out network and the Storage network |
-| Support status | Planned. See [#49](https://github.com/unifabric-io/unifabric/issues/49). |
+| Support status | Planned. See [#49](https://github.com/unifabric-io/unifabric/issues/49) and [#3](https://github.com/unifabric-io/unifabric/pull/3). |
 
 This item will collect traffic samples on switches, and associate the sampled RDMA traffic with Pods.
-Then you can answer "which job does this traffic on the switch belong to".
+It does more than answer "which job does this traffic on the switch belong to".
+Together with host and Pod RDMA NIC observability and eBPF-based RDMA tracing, it will connect the RDMA metrics of a Pod on the host NIC and on each switch along the path.
+Then you can see the end-to-end path of the traffic: from the source Pod, through each switch and port, to the destination Pod. You can find on which segment of the path the congestion or errors occur.
 
 > Note: Now you can use topology discovery to find the switch that a NIC connects to. Topology discovery records the switch domain of each node in Node labels. With LLDP discovery, `FabricNode` also records the switch and port that each NIC connects to. See [Topology discovery concepts](../../concepts/topology-discovery.md).
 
