@@ -35,36 +35,60 @@ efficiency.
 
 ![Unifabric product architecture](./docs/images/product-architecture.png)
 
-Unifabric sits on top of the scale-out, scale-up, and storage networks. It discovers
-them directly, or imports topology from NVIDIA Topograph and NetQ. It presents the
+Unifabric sits on top of the scale-out, scale-up, and storage networks. It
+discovers switch neighbors by itself with LLDP and `ibnetdiscover`, and works with
+NVIDIA NetQ and NVIDIA Topograph to find where each node sits. It presents the
 three core capabilities through one Kubernetes resource model. Schedulers, Grafana,
 and Prometheus consume the result.
+
+The following example shows the topology that Unifabric discovers and the labels
+that it writes, for a single-plane, rail-optimized scale-out network.
+
+- Each host has 8 GPUs that connect over NVLink inside the host. Each host also has
+  8 RDMA NICs, one for each rail.
+- NIC `Rn` of every host connects to the rail `Rn` leaf in its leaf group (tier 1),
+  and every leaf connects to every spine (tier 2).
+
+The table shows the Node labels that Unifabric writes for each host. Two nodes with
+the same `tier-1` value communicate through the leaves only. Other nodes communicate
+through the spines. The diagram shows only 2 hosts for each leaf group. A real leaf
+serves more hosts (for example 32), so its uplinks to the 4 spines match its
+downlinks to the hosts (non-blocking, 1:1).
+
+![Single-plane rail-optimized scale-out topology](./docs/images/scale-out-topology.png)
 
 ## Core Features
 
 ### Topology discovery
 
-Topology discovery probes and identifies, in real time, the connections between
-hosts, switches, and other devices across the scale-out, scale-up, and storage
-networks. It turns the physical topology, which is scattered across vendor
-devices, into standard Kubernetes resources that other systems consume directly.
+Topology discovery finds how switches connect to each other and where each node
+sits in the network. It turns the physical topology, which is scattered across
+vendor devices, into standard Kubernetes resources that other systems consume
+directly.
 
 Capabilities:
 
-- **Tiered Node labels**: writes each node's position in the network (leaf, spine,
-  and other tiers) into Node labels. Schedulers such as Kueue TAS, Volcano, and
-  KAI Scheduler consume the labels directly and place communication-heavy jobs
-  inside one switch domain, which shortens communication paths and improves
-  training and inference efficiency.
-- **Topology visualization**: publishes `Topology` resources and renders the whole
+- **Switch neighbor discovery**: Unifabric automatically discovers the neighbors of
+  each switch, and the links between leaf, spine, and other tiers, through
+  mechanisms such as LLDP and `ibnetdiscover`. The result is a complete network
+  topology.
+- **Node placement**: Unifabric works with external tools such as NVIDIA NetQ and
+  NVIDIA Topograph to find which network plane each node is in and which switches
+  it connects to. It writes the result into tiered Node labels. Schedulers such as
+  Kueue TAS, Volcano, and KAI Scheduler consume the labels directly and place
+  communication-heavy jobs inside one switch domain. This shortens communication
+  paths and improves training and inference efficiency.
+- **Topology visualization**: publishes `Topology` resources and shows the whole
   fabric interactively in Grafana. Operators see the global connection state
-  without logging into switches and quickly confirm which nodes and links are in
-  the affected scope during troubleshooting.
+  without logging into switches. During troubleshooting, they quickly confirm
+  which nodes and links are affected.
+- **Multi-plane support**: in a multi-plane network, the NICs of one node connect
+  to several independent network planes. Unifabric discovers, labels, and shows
+  the topology of each plane separately.
 
 Applicability:
 
-- Supports general SONiC RoCE switches (LLDP-based discovery), NVIDIA Spectrum-X,
-  and InfiniBand (imported from NVIDIA Topograph)
+- Supports general SONiC RoCE switches, NVIDIA Spectrum-X, and InfiniBand
 - Supports bare-metal and cloud environments
 
 ### High-speed network traffic observability
