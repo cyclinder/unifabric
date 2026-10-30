@@ -36,48 +36,40 @@ efficiency.
 ![Unifabric product architecture](./docs/images/product-architecture.png)
 
 Unifabric sits on top of the scale-out, scale-up, and storage networks. It
-discovers switch neighbors by itself with LLDP and `ibnetdiscover`, and works with
-NVIDIA NetQ and NVIDIA Topograph to find where each node sits. It presents the
-three core capabilities through one Kubernetes resource model. Schedulers, Grafana,
-and Prometheus consume the result.
+identifies the switches in the network and their neighbor relations, and the
+topology domains that the nodes are in. It presents the three core capabilities
+through one Kubernetes resource model. Schedulers, Grafana, and Prometheus consume
+the result.
 
-The following example shows the topology that Unifabric discovers and the labels
-that it writes, for a single-plane, rail-optimized scale-out network.
+The following diagram shows an example of the network topology that Unifabric
+identifies:
 
-- Each host has 8 GPUs that connect over NVLink inside the host. Each host also has
-  8 RDMA NICs, one for each rail.
-- NIC `Rn` of every host connects to the rail `Rn` leaf in its leaf group (tier 1),
-  and every leaf connects to every spine (tier 2).
-
-The table shows the Node labels that Unifabric writes for each host. Two nodes with
-the same `tier-1` value communicate through the leaves only. Other nodes communicate
-through the spines. The diagram shows only 2 hosts for each leaf group. A real leaf
-serves more hosts (for example 32), so its uplinks to the 4 spines match its
-downlinks to the hosts (non-blocking, 1:1).
-
-![Single-plane rail-optimized scale-out topology](./docs/images/scale-out-topology.png)
+![Network topology identification example](./docs/images/network-topology.png)
 
 ## Core Features
 
 ### Topology discovery
 
-Topology discovery finds how switches connect to each other and where each node
-sits in the network. It turns the physical topology, which is scattered across
+Topology discovery finds how switches connect to each other and the topology
+domain that each node is in. It turns the physical topology, which is scattered across
 vendor devices, into standard Kubernetes resources that other systems consume
 directly.
 
 Capabilities:
 
-- **Switch neighbor discovery**: Unifabric automatically discovers the neighbors of
-  each switch, and the links between leaf, spine, and other tiers, through
-  mechanisms such as LLDP and `ibnetdiscover`. The result is a complete network
-  topology.
-- **Node placement**: Unifabric works with external tools such as NVIDIA NetQ and
-  NVIDIA Topograph to find which network plane each node is in and which switches
-  it connects to. It writes the result into tiered Node labels. Schedulers such as
-  Kueue TAS, Volcano, and KAI Scheduler consume the labels directly and place
-  communication-heavy jobs inside one switch domain. This shortens communication
-  paths and improves training and inference efficiency.
+- **Switch neighbor discovery**: Unifabric identifies every switch in the network
+  through several methods. It then finds the physical neighbor relations between
+  switches, and between switches and hosts, and from them builds the topology of
+  the whole network.
+- **Node topology identification**: Unifabric identifies, through several methods,
+  the topology domain that each node is in. It writes the result into tiered Node
+  labels. Schedulers such as Kueue TAS, Volcano, and KAI Scheduler consume the
+  labels directly and place communication-heavy jobs inside one switch domain.
+  This shortens communication paths and improves training and inference
+  efficiency. The methods include:
+  - NVIDIA switches: Unifabric uses the NVIDIA Topograph project to find where
+    each node is.
+  - Other switches: Unifabric uses its own methods to find where each node is.
 - **Topology visualization**: publishes `Topology` resources and shows the whole
   fabric interactively in Grafana. Operators see the global connection state
   without logging into switches. During troubleshooting, they quickly confirm
@@ -88,7 +80,11 @@ Capabilities:
 
 Applicability:
 
-- Supports general SONiC RoCE switches, NVIDIA Spectrum-X, and InfiniBand
+- Supports these switch types:
+  - General SONiC RoCE switches
+  - NVIDIA Spectrum-X RoCE switches
+  - NVIDIA Quantum InfiniBand switches
+  - Other switches, through a custom topology
 - Supports bare-metal and cloud environments
 
 ### High-speed network traffic observability
@@ -158,8 +154,8 @@ Use cases:
 ## Quick Start
 
 Follow the [deployment guide](./docs/getting-started.md) to install Unifabric. It
-covers the default SONiC RoCE network and also supports the InfiniBand and
-NVIDIA Spectrum-X environments.
+covers the default SONiC RoCE network and also supports NVIDIA Spectrum-X (RoCE)
+and NVIDIA Quantum (InfiniBand) switch environments.
 
 After installation, refer to the following guides for each feature:
 

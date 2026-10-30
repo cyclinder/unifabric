@@ -27,40 +27,30 @@ label 直接被 Kueue、Volcano 等调度器消费，提升 AI 集群的训练�
 
 ![Unifabric 产品架构图](./docs/images/product-architecture.png)
 
-Unifabric 构建在 scale-out、scale-up 和存储三张网络之上：通过 LLDP、`ibnetdiscover`
-自主发现交换机邻居，并对接 NVIDIA NetQ、NVIDIA Topograph 识别节点在拓扑中的位置，
-以统一的 Kubernetes 资源模型对外提供三大核心能力，由调度器、Grafana 和 Prometheus 消费。
+Unifabric 构建在 scale-out、scale-up 和存储三张网络之上：识别网络中的交换机及其邻居
+关系，以及节点所在的网络拓扑区域，以统一的 Kubernetes 资源模型对外提供三大核心能力，
+由调度器、Grafana 和 Prometheus 消费。
 
-下图以一个单平面、轨道优化（rail-optimized）的 scale-out 网络为例，展示 Unifabric
-发现的拓扑及写入的 label。
+网络拓扑识别效果图如下：
 
-- 每台主机有 8 块 GPU，机内通过 NVLink 互联；每台主机还有 8 块 RDMA 网卡，每块网卡
-  对应一条轨道。
-- 每台主机的网卡 `Rn` 连接到所在 leaf 组（tier 1）中轨道 `Rn` 的 leaf 交换机，每台
-  leaf 都连接到所有 spine 交换机（tier 2）。
-
-表格列出了 Unifabric 为每台主机写入的 Node label：`tier-1` 取值相同的节点之间只经过
-leaf 通信，其他节点之间需要经过 spine。图中每个 leaf 组只画了 2 台主机；实际环境中
-一台 leaf 连接更多主机（例如 32 台），因此它到 4 台 spine 的上行链路与连接主机的下行
-链路相匹配（1:1 无收敛）。
-
-![单平面轨道优化 scale-out 拓扑](./docs/images/scale-out-topology.png)
+![网络拓扑识别效果图](./docs/images/network-topology.png)
 
 ## 核心特性
 
 ### 拓扑识别
 
-拓扑识别功能发现交换机之间的连接关系，以及每个节点在网络中的位置，把原本散落在
+拓扑识别功能发现交换机之间的连接关系，以及每个节点所处的网络拓扑区域，把原本散落在
 各家网络设备里的物理拓扑，变成 Kubernetes 中可直接消费的标准资源。
 
 具备如下功能：
 
-- **交换机邻居发现**：Unifabric 通过 LLDP、ibnetdiscover 等机制可自动发现每台交换机
-  的邻居，以及 Leaf、Spine 等各层交换机之间的连接关系，最终形成完整的网络拓扑。
-- **节点位置发现**：Unifabric 可通过对接 NVIDIA NetQ、NVIDIA Topograph 等外部工具，
-  识别每个节点位于哪一个网络平面、与哪些交换机相连，并把结果写入分层 Node label，
-  供 Kueue TAS、Volcano、KAI Scheduler 等调度器直接消费，把通信密集的任务收敛在同一
-  交换机域内，缩短通信路径，提升训练与推理效率
+- **交换机邻居发现**：Unifabric 通过多种手段识别出网络中的每一台交换机，并获取交换机与
+  交换机、交换机与主机之间的物理邻居关系，从而识别出整个网络的拓扑关系
+- **节点的拓扑区域识别**：Unifabric 通过多种手段识别出节点在网络中所处的拓扑区域，并把
+  结果写入分层 Node label，供 Kueue TAS、Volcano、KAI Scheduler 等调度器直接消费，把
+  通信密集的任务收敛在同一交换机域内，缩短通信路径，提升训练与推理效率。识别手段包括：
+  - NVIDIA 交换机场景：通过 NVIDIA Topograph 项目识别节点位置
+  - 非 NVIDIA 交换机场景：通过 Unifabric 自身的多种技术手段识别节点位置
 - **拓扑可视化**：发布 `Topology` 资源并在 Grafana 中交互式呈现全网拓扑，
   让运维无需登录交换机即可掌握全局连接状态，排障时可快速确认受影响的节点与链路范围
 - **多平面支持**：在多平面网络中，同一节点的多块网卡分别接入多个相互独立的网络
@@ -68,7 +58,11 @@ leaf 通信，其他节点之间需要经过 spine。图中每个 leaf 组只画
 
 功能适用：
 
-- 支持通用 SONiC RoCE 交换机、NVIDIA Spectrum-X 和 InfiniBand
+- 支持各类交换机场景：
+  - 通用 SONiC RoCE 交换机
+  - NVIDIA 的 RoCE 交换机 Spectrum-X
+  - NVIDIA 的 InfiniBand 交换机 Quantum
+  - 其他交换机（通过自定义拓扑）
 - 支持裸金属与云化环境
 
 ### 高速网络流量观测
@@ -123,7 +117,8 @@ leaf 通信，其他节点之间需要经过 spine。图中每个 leaf 组只画
 ## 快速开始
 
 按照[部署指南](./docs/getting-started.zh.md)安装 Unifabric。该文档覆盖默认的
-SONiC RoCE 网络，也支持 InfiniBand 和 NVIDIA Spectrum-X 两种环境。
+SONiC RoCE 网络，也支持 NVIDIA Spectrum-X（RoCE）和 NVIDIA Quantum（InfiniBand）
+交换机环境。
 
 安装完成后，使用各项功能参考:
 
